@@ -97,7 +97,7 @@ to_metric_json({MetricName, MetricValue}) ->
     {to_metric_str(MetricName), to_metric_value_json(MetricValue)}.
 
 to_metric_str(#relic_metric_name{category = Cat, label = Label, units = Units}) ->
-    "Component/" ++ Cat ++ "/" ++ Label ++ "[" ++ Units ++ "]".
+    <<"Component/", Cat/binary, "/", Label/binary, "[", Units/binary, "]">>.
 
 to_metric_value_json(MetricValue) when is_float(MetricValue); is_integer(MetricValue) ->
     MetricValue;
