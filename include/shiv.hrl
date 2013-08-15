@@ -5,9 +5,9 @@
 -define(RELIC_APPLICATION_NAME, <<"Folsom Shiv">>).
 
 -record(relic_metric_name, {
-    category,
-    label,
-    units
+    category :: binary(),
+    label :: binary(),
+    units :: binary()
 }).
 
 -record(relic_metric_sample, {
@@ -24,6 +24,6 @@
 
 -type shiv_metric_name() :: atom().
 -type shiv_metric() ::
-    {gauge, shiv_metric_name()}
-    | {counter, shiv_metric_name()}
-    | {spiral, shiv_metric_name()}.
+    {gauge, #relic_metric_name{}}
+    | {counter, #relic_metric_name{}}
+    | {spiral, #relic_metric_name{}}.

@@ -15,6 +15,7 @@
 %% api
 -export([new_metric/1, send_new_relic_metrics/0]).
 
+-include("shiv.hrl").
 
 -record(server_state, {
     new_relic_license,
@@ -53,25 +54,64 @@ init([NewRelicLicense]) ->
 %%
 
 send_new_relic_metrics() ->
-    ok.
+    Metrics = build_relic_metrics(
+        folsom_metrics:get_metrics_value(shiv), []
+    ),
 
+    lager:error("Metrics: ~p", [Metrics]).
+
+%%
+%% @doc Creates a backing folsom metric in the expected format,
+%%  and appropriately tagged, so we can retrieve it easily.
+%%
+-spec new_metric(shiv_metric()) -> ok.
 new_metric(ShivMetric) ->
     new_folsom_metric(ShivMetric),
-    folsom_metrics:tag_metric(metric_name(ShivMetric), shiv).
+    folsom_metrics:tag_metric(
+        folsom_metric_name(ShivMetric),
+        shiv
+    ),
+    ok.
 
 %%
 %%  HELPER FUNCTIONS
 %%
 
-new_folsom_metric({gauge, MetricName}) ->
-    folsom_metrics:new_gauge(MetricName);
-new_folsom_metric({counter, MetricName}) ->
-    folsom_metrics:new_counter(MetricName);
-new_folsom_metric({spiral, MetricName}) ->
-    folsom_metrics:new_spiral(MetricName).
+build_relic_metrics([], Acc) ->
+    Acc;
+build_relic_metrics([FolsomMetric | Rest], Acc) ->
+    build_relic_metrics(
+        Rest, [build_relic_metric(FolsomMetric) | Acc]
+    ).
 
-metric_name({_MetricType, MetricName}) ->
-    MetricName.
+build_relic_metric({FolsomMetricName, Value}) ->
+    {to_relic_name(FolsomMetricName), to_relic_value(Value)}.
+
+new_folsom_metric({gauge, MetricName}) ->
+    folsom_metrics:new_gauge(folsom_metric_name(MetricName));
+new_folsom_metric({counter, MetricName}) ->
+    folsom_metrics:new_counter(folsom_metric_name(MetricName));
+new_folsom_metric({spiral, MetricName}) ->
+    folsom_metrics:new_spiral(folsom_metric_name(MetricName)).
+
+
+folsom_metric_name({_MetricType, RelicMetricName}) ->
+    to_folsom_name(RelicMetricName).
+
+
+to_folsom_name(#relic_metric_name{category = Cat, label = Lbl, units = Units}) ->
+    terlbox:bjoin([Cat, Lbl, Units], <<":">>).
+
+to_relic_name(FolsomMetricName) ->
+    [Cat, Lbl, Units] = terlbox:bsplit(FolsomMetricName, <<":">>),
+    #relic_metric_name{category = Cat, label = Lbl, units = Units}.
+
+to_relic_value(FolsomMetricValue)
+    when is_float(FolsomMetricValue); is_integer(FolsomMetricValue)
+    ->
+    FolsomMetricValue;
+to_relic_value(_) ->
+    undefined.
 
 %%
 %%  SERVER CALLS API
