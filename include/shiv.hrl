@@ -1,7 +1,7 @@
 %% API
 
 -define(RELIC_PLUGIN_VERSION, "1.0.0").
--define(RELIC_PLUGIN_GUID, "com.adroll.shiv").
+-define(RELIC_PLUGIN_GUID, "com.adroll.shivtest").
 
 -record(relic_metric_name, {
     category,
