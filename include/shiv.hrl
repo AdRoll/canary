@@ -1,4 +1,5 @@
-%% API
+-ifndef(shiv_hrl).
+-define(shiv_hrl, true).
 
 -define(RELIC_PLUGIN_VERSION, <<"1.0.0">>).
 -define(RELIC_PLUGIN_GUID, <<"com.adroll.shivtest">>).
@@ -27,3 +28,6 @@
     {gauge, #relic_metric_name{}}
     | {counter, #relic_metric_name{}}
     | {spiral, #relic_metric_name{}}.
+
+
+-endif.
