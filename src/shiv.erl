@@ -13,7 +13,7 @@
 -export([init/1, handle_call/3, handle_cast/2, terminate/2, code_change/3, handle_info/2]).
 
 %% api
--export([new_metric/1, send_new_relic_metrics/0]).
+-export([start/1, stop/0, new_metric/1, send_new_relic_metrics/0]).
 
 -include("shiv.hrl").
 
