@@ -1,0 +1,10 @@
+{application, shiv,
+    [
+        {description,"New relic plugin wired up to folsom metrics."},
+        {vsn,"1.0.0"},
+        {registered,[]},
+        {env,[]},
+        {start_phases,[]},
+        {applications,[kernel,stdlib]}
+    ]
+}.
