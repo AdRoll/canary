@@ -13,7 +13,7 @@
 -export([init/1, handle_call/3, handle_cast/2, terminate/2, code_change/3, handle_info/2]).
 
 %% api
--export([start/2, stop/0, ping/0, track_metric/1, notify_metric/2, send_new_relic_metrics/0]).
+-export([start/2, start/3, stop/0, ping/0, track_metric/1, notify_metric/2, send_new_relic_metrics/0]).
 
 -include("shiv.hrl").
 
@@ -26,8 +26,11 @@
 
 
 start(HostName, NewRelicLicense) ->
+    start(HostName, NewRelicLicense, []).
+
+start(HostName, NewRelicLicense, InitialShivMetrics) ->
     lager:info("Starting shiv..."),
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [HostName, NewRelicLicense], []).
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [HostName, NewRelicLicense, InitialShivMetrics], []).
 
 stop() ->
     gen_server:cast(?MODULE, stop).
@@ -40,7 +43,7 @@ init([HostName, NewRelicLicense, ShivMetrics]) ->
     application:start(folsom),
 
     % report call counts and blocks every minute to cloud watch.
-    NewRelicReportPC = timer:apply_interval(60000, shiv, send_new_relic_metrics, []),
+    NewRelicReportPC = timer:apply_interval(6000, shiv, send_new_relic_metrics, []),
 
     % initialize all metrics
     init_metrics(ShivMetrics),
