@@ -7,7 +7,7 @@
 %% API
 -export([send_metric/4, send_metrics/3]).
 
--define(RELIC_METRICS_POST_ENDPOINT, "http://platform-api.newrelic.com/platform/v1/metrics").
+-define(RELIC_METRICS_POST_ENDPOINT, "https://platform-api.newrelic.com/platform/v1/metrics").
 -define(RELIC_METRICS_POST_TRIES, 3).
 
 %%
@@ -27,28 +27,30 @@ post_metric_report(HostName, LicenseKey, Metrics) ->
     BodyJson = {struct,
         [
             {agent,
-                {stuct,
+                {struct,
                     [
-                        {host, HostName},
-                        {pid, self()},
+                        {host, dru:tobin(HostName)},
+                        {pid, dru:tobin(pid_to_list(self()))},
                         {version, ?RELIC_PLUGIN_VERSION}
                     ]
                 }
             },
             {components,
-                {struct,
-                    [
-                        {name, "Folsom Shiv"},
-                        {guid, ?RELIC_PLUGIN_GUID},
-                        {duration, 60},
-                        {metrics, to_metrics_json(Metrics)}
-                    ]
-                }
+                [
+                    {struct,
+                        [
+                            {name, ?RELIC_APPLICATION_NAME},
+                            {guid, ?RELIC_PLUGIN_GUID},
+                            {duration, 60},
+                            {metrics, to_metrics_json(Metrics)}
+                        ]
+                    }
+                ]
             }
         ]
     },
 
-    post_metric_report__(LicenseKey, terlbox:tojson(BodyJson), 0).
+    post_metric_report__(LicenseKey, iolist_to_binary(terlbox:tojson(BodyJson)), 0).
 
 
 post_metric_report__(_LicenseKey, _Body, Tries)
@@ -57,6 +59,7 @@ post_metric_report__(_LicenseKey, _Body, Tries)
     lager:error("New relic metrics post completely failed"),
     error;
 post_metric_report__(LicenseKey, Body, Tries) ->
+    lager:error("Attempting to post metric report to new relic: ~p", [Body]),
     case catch(
         httpc:request(post,
             {
@@ -94,7 +97,7 @@ to_metric_json({MetricName, MetricValue}) ->
     {to_metric_str(MetricName), to_metric_value_json(MetricValue)}.
 
 to_metric_str(#relic_metric_name{category = Cat, label = Label, units = Units}) ->
-    "Component/" ++ Cat ++ "/" ++ Label ++ "[" ++ Units ++ "]".
+    "Component2/" ++ Cat ++ "/" ++ Label ++ "[" ++ Units ++ "]".
 
 to_metric_value_json(MetricValue) when is_float(MetricValue); is_integer(MetricValue) ->
     MetricValue;
