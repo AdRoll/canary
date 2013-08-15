@@ -110,8 +110,8 @@ to_relic_value(FolsomMetricValue)
     when is_float(FolsomMetricValue); is_integer(FolsomMetricValue)
     ->
     FolsomMetricValue;
-to_relic_value(_) ->
-    undefined.
+to_relic_value([{count,_}, {one,SpiralValue}]) ->
+    SpiralValue.
 
 %%
 %%  SERVER CALLS API
