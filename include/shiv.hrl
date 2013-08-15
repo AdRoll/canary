@@ -19,5 +19,11 @@
 }).
 
 -type relic_metric_value() :: #relic_metric_sample{} | integer() | float().
-
 -type relic_metric() :: {#relic_metric_name{}, relic_metric_value()}.
+
+
+-type shiv_metric_name() :: atom().
+-type shiv_metric() ::
+    {gauge, shiv_metric_name()}
+    | {counter, shiv_metric_name()}
+    | {spiral, shiv_metric_name()}.
