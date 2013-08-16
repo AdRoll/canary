@@ -13,29 +13,30 @@
 -export([init/1, handle_call/3, handle_cast/2, terminate/2, code_change/3, handle_info/2]).
 
 %% api
--export([start/2, start/3, stop/0, ping/0, track_metric/1, notify_metric/2, send_new_relic_metrics/0]).
+-export([start/3, start/4, stop/0, ping/0, track_metric/1, notify_metric/2, send_new_relic_metrics/0]).
 
 -include("shiv.hrl").
 
 -record(server_state, {
     host_name,
     tracked_metrics,
+    new_relic_entity_name,
     new_relic_license,
     new_relic_report_pc   % TRef representing periodic call to upload metrics via new_relic_api
 }).
 
 
-start(HostName, NewRelicLicense) ->
-    start(HostName, NewRelicLicense, []).
+start(NewRelicEntityName, HostName, NewRelicLicense) ->
+    start(NewRelicEntityName, HostName, NewRelicLicense, []).
 
-start(HostName, NewRelicLicense, InitialShivMetrics) ->
+start(NewRelicEntityName, HostName, NewRelicLicense, InitialShivMetrics) ->
     lager:info("Starting shiv..."),
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [HostName, NewRelicLicense, InitialShivMetrics], []).
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [NewRelicEntityName, HostName, NewRelicLicense, InitialShivMetrics], []).
 
 stop() ->
     gen_server:cast(?MODULE, stop).
 
-init([HostName, NewRelicLicense, ShivMetrics]) ->
+init([NewRelicEntityName, HostName, NewRelicLicense, ShivMetrics]) ->
     process_flag(trap_exit, true),
     lager:info("Initializing shiv..."),
 
@@ -51,6 +52,7 @@ init([HostName, NewRelicLicense, ShivMetrics]) ->
     State = #server_state{
             host_name = HostName,
             tracked_metrics = ShivMetrics,
+            new_relic_entity_name = NewRelicEntityName,
             new_relic_license = NewRelicLicense,
             new_relic_report_pc = NewRelicReportPC
     },
@@ -182,9 +184,15 @@ handle_cast({track_metric, ShivMetric},
     ->
     {noreply, State#server_state{tracked_metrics = [ShivMetric | TrackedMetrics]}};
 handle_cast({send_new_relic_metrics, RelicMetrics},
-    State = #server_state{host_name = HostName, new_relic_license = NRLicense})
+    State = #server_state{
+            host_name = HostName, new_relic_license = NRLicense, new_relic_entity_name = NREntityName
+    })
     ->
-    new_relic_api:send_metrics(HostName, NRLicense, RelicMetrics),
+    erlang:spawn(
+        fun() ->
+            new_relic_api:send_metrics(NREntityName, HostName, NRLicense, RelicMetrics)
+        end
+    ),
     {noreply, State};
 handle_cast(stop, State) ->
     {stop, normal, State};

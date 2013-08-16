@@ -5,7 +5,7 @@
 -include("shiv.hrl").
 
 %% API
--export([send_metric/4, send_metrics/3]).
+-export([send_metric/5, send_metrics/4]).
 
 -define(RELIC_METRICS_POST_ENDPOINT, "https://platform-api.newrelic.com/platform/v1/metrics").
 -define(RELIC_METRICS_POST_TRIES, 3).
@@ -14,23 +14,23 @@
 %%  Contains functions for posting metrics to NewRelic via their REST api.
 %%
 
-send_metric(HostName, LicenseKey, RelicMetricName, RelicMetricValue) ->
-    send_metrics(HostName, LicenseKey, [{RelicMetricName, RelicMetricValue}]).
+send_metric(EntityName, HostName, LicenseKey, RelicMetricName, RelicMetricValue) ->
+    send_metrics(EntityName, HostName, LicenseKey, [{RelicMetricName, RelicMetricValue}]).
 
-send_metrics(HostName, LicenseKey, Metrics) ->
-    post_metric_report(HostName, LicenseKey, Metrics).
+send_metrics(EntityName, HostName, LicenseKey, Metrics) ->
+    post_metric_report(EntityName, HostName, LicenseKey, Metrics).
 
 
 %% @doc Posts specified metrics to new relic's designated endpoint for receiving
 %%  such reports.
-post_metric_report(HostName, LicenseKey, Metrics) ->
+post_metric_report(EntityName, HostName, LicenseKey, Metrics) ->
     BodyJson = {struct,
         [
             {agent,
                 {struct,
                     [
-                        {host, dru:tobin(HostName)},
-                        {pid, dru:tobin(pid_to_list(self()))},
+                        {host, terlbox:tobin(HostName)},
+                        {pid, terlbox:tobin(pid_to_list(self()))},
                         {version, ?RELIC_PLUGIN_VERSION}
                     ]
                 }
@@ -39,7 +39,7 @@ post_metric_report(HostName, LicenseKey, Metrics) ->
                 [
                     {struct,
                         [
-                            {name, ?RELIC_APPLICATION_NAME},
+                            {name, terlbox:tobin(EntityName)},
                             {guid, ?RELIC_PLUGIN_GUID},
                             {duration, 60},
                             {metrics, to_metrics_json(Metrics)}
