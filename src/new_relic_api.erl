@@ -5,7 +5,7 @@
 -include("shiv.hrl").
 
 %% API
--export([send_metric/5, send_metrics/4]).
+-export([send_metric/6, send_metrics/5]).
 
 -define(RELIC_METRICS_POST_ENDPOINT, "https://platform-api.newrelic.com/platform/v1/metrics").
 -define(RELIC_METRICS_POST_TRIES, 3).
@@ -14,16 +14,16 @@
 %%  Contains functions for posting metrics to NewRelic via their REST api.
 %%
 
-send_metric(EntityName, HostName, LicenseKey, RelicMetricName, RelicMetricValue) ->
-    send_metrics(EntityName, HostName, LicenseKey, [{RelicMetricName, RelicMetricValue}]).
+send_metric(Guid, EntityName, HostName, LicenseKey, RelicMetricName, RelicMetricValue) ->
+    send_metrics(Guid, EntityName, HostName, LicenseKey, [{RelicMetricName, RelicMetricValue}]).
 
-send_metrics(EntityName, HostName, LicenseKey, Metrics) ->
-    post_metric_report(EntityName, HostName, LicenseKey, Metrics).
+send_metrics(Guid, EntityName, HostName, LicenseKey, Metrics) ->
+    post_metric_report(Guid, EntityName, HostName, LicenseKey, Metrics).
 
 
 %% @doc Posts specified metrics to new relic's designated endpoint for receiving
 %%  such reports.
-post_metric_report(EntityName, HostName, LicenseKey, Metrics) ->
+post_metric_report(Guid, EntityName, HostName, LicenseKey, Metrics) ->
     BodyJson = {struct,
         [
             {agent,
@@ -40,7 +40,7 @@ post_metric_report(EntityName, HostName, LicenseKey, Metrics) ->
                     {struct,
                         [
                             {name, terlbox:tobin(EntityName)},
-                            {guid, ?RELIC_PLUGIN_GUID},
+                            {guid, terlbox:tobin(Guid)},
                             {duration, 60},
                             {metrics, to_metrics_json(Metrics)}
                         ]
