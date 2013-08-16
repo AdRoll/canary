@@ -43,7 +43,7 @@ init([HostName, NewRelicLicense, ShivMetrics]) ->
     application:start(folsom),
 
     % report call counts and blocks every minute to cloud watch.
-    NewRelicReportPC = timer:apply_interval(6000, shiv, send_new_relic_metrics, []),
+    NewRelicReportPC = timer:apply_interval(60000, shiv, send_new_relic_metrics, []),
 
     % initialize all metrics
     init_metrics(ShivMetrics),
