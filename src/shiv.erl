@@ -37,7 +37,7 @@ start(NewRelicGuid, NewRelicEntityName, HostName, NewRelicLicense, InitialShivMe
 stop() ->
     gen_server:cast(?MODULE, stop).
 
-init([NewRelicGuid, NewRelicEntityName, HostName, NewRelicLicense, ShivMetrics]) ->
+init([NewRelicGuid, NewRelicEntityName, HostName, NewRelicLicense, UseCompression, ShivMetrics]) ->
     process_flag(trap_exit, true),
     lager:info("Initializing shiv..."),
 
@@ -45,7 +45,7 @@ init([NewRelicGuid, NewRelicEntityName, HostName, NewRelicLicense, ShivMetrics])
     application:start(folsom),
 
     % report call counts and blocks every minute to cloud watch.
-    NewRelicReportPC = timer:apply_interval(60000, shiv, send_new_relic_metrics, []),
+    NewRelicReportPC = timer:apply_interval(60000, shiv, send_new_relic_metrics, [UseCompression]),
 
     % initialize all metrics
     init_metrics(ShivMetrics),
@@ -73,7 +73,7 @@ ping() ->
 %%
 %% @doc Wired up as periodic call.  Pulls all tracked metric values from folsom
 %%  via reserved tag, and forwards to new relic via api.
-send_new_relic_metrics() ->
+send_new_relic_metrics(UseCompression) ->
     FolsomMetrics = case catch(folsom_metrics:get_metrics_value(shiv)) of
         Metrics when is_list(Metrics) ->
             Metrics;
@@ -84,7 +84,7 @@ send_new_relic_metrics() ->
 
     RelicMetrics = build_relic_metrics(FolsomMetrics, []),
 
-    gen_server:cast(?MODULE, {send_new_relic_metrics, RelicMetrics}).
+    gen_server:cast(?MODULE, {send_new_relic_metrics, RelicMetrics, UseCompression}).
 
 
 %%
@@ -205,7 +205,7 @@ handle_cast({track_metric, ShivMetric},
     {noreply, State2};
 
 
-handle_cast({send_new_relic_metrics, RelicMetrics},
+handle_cast({send_new_relic_metrics, RelicMetrics, UseCompression},
     State = #server_state{
             host_name = HostName,
             new_relic_guid = NRGuid,
@@ -215,7 +215,7 @@ handle_cast({send_new_relic_metrics, RelicMetrics},
     ->
     erlang:spawn(
         fun() ->
-            new_relic_api:send_metrics(NRGuid, NREntityName, HostName, NRLicense, RelicMetrics)
+            new_relic_api:send_metrics(NRGuid, NREntityName, HostName, NRLicense, UseCompression, RelicMetrics)
         end
     ),
     {noreply, State};
