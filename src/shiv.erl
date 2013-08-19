@@ -84,7 +84,6 @@ send_new_relic_metrics() ->
 
     RelicMetrics = build_relic_metrics(FolsomMetrics, []),
 
-    lager:error("Relic metrics: ~p", [RelicMetrics]),
     gen_server:cast(?MODULE, {send_new_relic_metrics, RelicMetrics}).
 
 
@@ -92,6 +91,8 @@ send_new_relic_metrics() ->
 %% @doc Allows for the tracking of some additional metric not originally posted as
 %%  part of the server initialization.
 %%
+track_metric(RelicMetricName = #relic_metric_name{}) ->
+    lager:error("Can't track a metric by name alone: ~p", [RelicMetricName]);
 track_metric(ShivMetric) ->
     init_metric(ShivMetric),
     gen_server:cast(?MODULE, {track_metric, ShivMetric}).
@@ -105,10 +106,16 @@ track_metric(ShivMetric) ->
 %%
 %% @doc Notifies underlying folsom metric of some event.
 %%
-notify_metric(RelicMetricName, Value) ->
+notify_metric(RelicMetric, Value) ->
     erlang:spawn(
         fun() ->
-            folsom_metrics:notify({to_folsom_name(RelicMetricName), Value})
+            % NOTE: start tracking on demand.
+            case folsom_metrics:notify({folsom_metric_name(RelicMetric), Value}) of
+                {error, _, _} ->
+                    track_metric(RelicMetric);
+                ok ->
+                    ok
+            end
         end
     ).
 
@@ -158,6 +165,8 @@ new_folsom_metric({spiral, MetricName}) ->
 
 
 folsom_metric_name({_MetricType, RelicMetricName}) ->
+    to_folsom_name(RelicMetricName);
+folsom_metric_name(RelicMetricName = #relic_metric_name{}) ->
     to_folsom_name(RelicMetricName).
 
 
@@ -186,7 +195,16 @@ handle_call({ping}, _From, State) ->
 handle_cast({track_metric, ShivMetric},
     State = #server_state{tracked_metrics = TrackedMetrics})
     ->
-    {noreply, State#server_state{tracked_metrics = [ShivMetric | TrackedMetrics]}};
+
+    % Don't double track.
+    State2 = case lists:member(ShivMetric, TrackedMetrics) of
+        true -> State;
+        false -> State#server_state{tracked_metrics = [ShivMetric | TrackedMetrics]}
+    end,
+
+    {noreply, State2};
+
+
 handle_cast({send_new_relic_metrics, RelicMetrics},
     State = #server_state{
             host_name = HostName,
@@ -201,14 +219,18 @@ handle_cast({send_new_relic_metrics, RelicMetrics},
         end
     ),
     {noreply, State};
+
 handle_cast(stop, State) ->
     {stop, normal, State};
+
 handle_cast(_Msg, State) ->
     {noreply, State}.
+
 
 handle_info(Info, State) ->
     lager:error("Unexpected shiv message received: ~p", [Info]),
     {noreply, State}.
+
 
 terminate(_Reason, #server_state{new_relic_report_pc=PC, tracked_metrics=ShivMetrics}) ->
     % delete all tracked metrics
@@ -218,6 +240,7 @@ terminate(_Reason, #server_state{new_relic_report_pc=PC, tracked_metrics=ShivMet
     timer:cancel(PC),
 
     ok.
+
 
 code_change(_OldVsn, State, _Extra) ->
     State.
