@@ -64,7 +64,6 @@ post_metric_report__(_HeadersAndBody, Tries)
     lager:error("New relic metrics post completely failed"),
     error;
 post_metric_report__({Headers, Body}, Tries) ->
-    lager:error("Attempting to post metric report to new relic: ~p", [Body]),
     case catch(
         httpc:request(post,
             {
@@ -86,8 +85,10 @@ post_metric_report__({Headers, Body}, Tries) ->
 
 
 metric_post_headers_and_body(LicenseKey, false, Body) ->
+    lager:error("New relic metric post report: ~p", [Body]),
     {[{"X-License-Key", LicenseKey}], Body};
 metric_post_headers_and_body(LicenseKey, true, Body) ->
+    lager:error("New relic metric post report: ~p", [Body]),
     {[{"X-License-Key", LicenseKey}, {"Content-Encoding", "gzip"}], zlib:gzip(Body)}.
 
 
