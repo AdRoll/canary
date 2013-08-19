@@ -13,7 +13,7 @@
 -export([init/1, handle_call/3, handle_cast/2, terminate/2, code_change/3, handle_info/2]).
 
 %% api
--export([start/4, start/5, stop/0, ping/0, track_metric/1, notify_metric/2, send_new_relic_metrics/1]).
+-export([start/5, start/6, stop/0, ping/0, track_metric/1, notify_metric/2, send_new_relic_metrics/1]).
 
 -include("shiv.hrl").
 
@@ -27,12 +27,15 @@
 }).
 
 
-start(NewRelicGuid, NewRelicEntityName, HostName, NewRelicLicense) ->
-    start(NewRelicGuid, NewRelicEntityName, HostName, NewRelicLicense, []).
+start(NewRelicGuid, NewRelicEntityName, HostName, NewRelicLicense, UseCompression) ->
+    start(NewRelicGuid, NewRelicEntityName, HostName, NewRelicLicense, UseCompression, []).
 
-start(NewRelicGuid, NewRelicEntityName, HostName, NewRelicLicense, InitialShivMetrics) ->
+start(NewRelicGuid, NewRelicEntityName, HostName, NewRelicLicense, UseCompression, InitialShivMetrics) ->
     lager:info("Starting shiv..."),
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [NewRelicGuid, NewRelicEntityName, HostName, NewRelicLicense, InitialShivMetrics], []).
+    gen_server:start_link(
+        {local, ?MODULE}, ?MODULE,
+        [NewRelicGuid, NewRelicEntityName, HostName, NewRelicLicense, UseCompression, InitialShivMetrics], []
+    ).
 
 stop() ->
     gen_server:cast(?MODULE, stop).
