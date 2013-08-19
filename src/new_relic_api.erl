@@ -5,7 +5,7 @@
 -include("shiv.hrl").
 
 %% API
--export([send_metric/6, send_metrics/5]).
+-export([send_metric/7, send_metrics/6]).
 
 -define(RELIC_METRICS_POST_ENDPOINT, "https://platform-api.newrelic.com/platform/v1/metrics").
 -define(RELIC_METRICS_POST_TRIES, 3).
@@ -14,16 +14,16 @@
 %%  Contains functions for posting metrics to NewRelic via their REST api.
 %%
 
-send_metric(Guid, EntityName, HostName, LicenseKey, RelicMetricName, RelicMetricValue) ->
-    send_metrics(Guid, EntityName, HostName, LicenseKey, [{RelicMetricName, RelicMetricValue}]).
+send_metric(Guid, EntityName, HostName, LicenseKey, UseCompression, RelicMetricName, RelicMetricValue) ->
+    send_metrics(Guid, EntityName, HostName, LicenseKey, UseCompression, [{RelicMetricName, RelicMetricValue}]).
 
-send_metrics(Guid, EntityName, HostName, LicenseKey, Metrics) ->
-    post_metric_report(Guid, EntityName, HostName, LicenseKey, Metrics).
+send_metrics(Guid, EntityName, HostName, LicenseKey, UseCompression, Metrics) ->
+    post_metric_report(Guid, EntityName, HostName, LicenseKey, UseCompression, Metrics).
 
 
 %% @doc Posts specified metrics to new relic's designated endpoint for receiving
 %%  such reports.
-post_metric_report(Guid, EntityName, HostName, LicenseKey, Metrics) ->
+post_metric_report(Guid, EntityName, HostName, LicenseKey, UseCompression, Metrics) ->
     BodyJson = {struct,
         [
             {agent,
@@ -50,21 +50,26 @@ post_metric_report(Guid, EntityName, HostName, LicenseKey, Metrics) ->
         ]
     },
 
-    post_metric_report__(LicenseKey, iolist_to_binary(terlbox:tojson(BodyJson)), 0).
+    post_metric_report__(
+        metric_post_headers_and_body(
+            LicenseKey, UseCompression,
+            iolist_to_binary(terlbox:tojson(BodyJson))
+        ),
+        0
+    ).
 
-
-post_metric_report__(_LicenseKey, _Body, Tries)
+post_metric_report__(_HeadersAndBody, Tries)
     when Tries >= ?RELIC_METRICS_POST_TRIES
     ->
     lager:error("New relic metrics post completely failed"),
     error;
-post_metric_report__(LicenseKey, Body, Tries) ->
+post_metric_report__({Headers, Body}, Tries) ->
     lager:error("Attempting to post metric report to new relic: ~p", [Body]),
     case catch(
         httpc:request(post,
             {
                 ?RELIC_METRICS_POST_ENDPOINT,
-                [{"X-License-Key", LicenseKey}, {"Accept", "application/json"}, {"Connection", "close"}],
+                [{"Accept", "application/json"}, {"Connection", "close"} | Headers],
                 "application/json",
                 Body
             },
@@ -76,10 +81,14 @@ post_metric_report__(LicenseKey, Body, Tries) ->
             ok;
         E ->
             lager:error("Error while posting new relic metrics", [E]),
-            post_metric_report__(LicenseKey, Body, Tries+1)
+            post_metric_report__({Headers, Body}, Tries+1)
     end.
 
 
+metric_post_headers_and_body(LicenseKey, false, Body) ->
+    {[{"X-License-Key", LicenseKey}], Body};
+metric_post_headers_and_body(LicenseKey, true, Body) ->
+    {[{"X-License-Key", LicenseKey}, {"Content-Encoding", "gzip"}], zlib:gzip(Body)}.
 
 
 %% @doc Converts a property list of metric names and values to correct json format
