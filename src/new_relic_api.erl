@@ -5,7 +5,7 @@
 -include("shiv.hrl").
 
 %% API
--export([send_metric/6, send_metrics/5]).
+-export([send_metric/7, send_metrics/6]).
 
 -define(RELIC_METRICS_POST_ENDPOINT, "https://platform-api.newrelic.com/platform/v1/metrics").
 -define(RELIC_METRICS_POST_TRIES, 3).
