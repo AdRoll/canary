@@ -13,7 +13,12 @@
 -export([init/1, handle_call/3, handle_cast/2, terminate/2, code_change/3, handle_info/2]).
 
 %% api
--export([start/5, start/6, stop/0, ping/0, track_metric/1, notify_metric/2, send_new_relic_metrics/1]).
+-export([
+    start/5, start/6, stop/0, ping/0,
+    track_metric/1, notify_metric/2,
+    time_call/4,
+    send_new_relic_metrics/1
+]).
 
 -include("shiv.hrl").
 
@@ -124,6 +129,39 @@ notify_metric(RelicMetric, Value) ->
 
 
 %%
+%% @doc Provides a simple convenience method for wrapping function around an execution time measurement (at
+%%  a sampled rate).
+%%
+time_call(Label, Seconds, {SampleRateNumerator, SampleRateDenominator}, CallFun)
+    when is_binary(Label)
+    ->
+    StartTime = terlbox:pytime(os:timestamp()),
+
+    RV = CallFun(),
+
+    terlbox:rate_limited_exec(
+        fun() ->
+            ExecTime = terlbox:pytime(os:timestamp()) - StartTime,
+
+            notify_metric(
+                {
+                    histogram,
+                    #relic_metric_name{category = <<"TimedCalls">>, label = Label, units = <<"seconds">>},
+                    slide, Seconds
+                },
+                ExecTime
+            ),
+
+            RV
+        end,
+        SampleRateNumerator,
+        SampleRateDenominator
+    ),
+
+    RV.
+
+
+%%
 %%  HELPER FUNCTIONS
 %%
 
@@ -159,6 +197,17 @@ build_relic_metrics([FolsomMetric | Rest], Acc) ->
 build_relic_metric({FolsomMetricName, Value}) ->
     {to_relic_name(FolsomMetricName), to_relic_value(Value)}.
 
+
+new_folsom_metric({histogram, MetricName}) ->
+    folsom_metrics:new_histogram(to_folsom_name(MetricName));
+new_folsom_metric({histogram, MetricName, uniform, Size}) ->
+    folsom_metrics:new_histogram(to_folsom_name(MetricName), uniform, Size);
+new_folsom_metric({histogram, MetricName, exdec, Size, Alpha}) ->
+    folsom_metrics:new_histogram(to_folsom_name(MetricName), exdec, Size, Alpha);
+new_folsom_metric({histogram, MetricName, slide, Seconds}) ->
+    folsom_metrics:new_histogram(to_folsom_name(MetricName), slide, Seconds);
+new_folsom_metric({histogram, MetricName, slide_uniform, {Seconds, Size}}) ->
+    folsom_metrics:new_histogram(to_folsom_name(MetricName), slide_uniform, {Seconds, Size});
 new_folsom_metric({gauge, MetricName}) ->
     folsom_metrics:new_gauge(to_folsom_name(MetricName));
 new_folsom_metric({counter, MetricName}) ->
@@ -167,10 +216,10 @@ new_folsom_metric({spiral, MetricName}) ->
     folsom_metrics:new_spiral(to_folsom_name(MetricName)).
 
 
-folsom_metric_name({_MetricType, RelicMetricName}) ->
-    to_folsom_name(RelicMetricName);
 folsom_metric_name(RelicMetricName = #relic_metric_name{}) ->
-    to_folsom_name(RelicMetricName).
+    to_folsom_name(RelicMetricName);
+folsom_metric_name(ShivMetric) when is_tuple(ShivMetric) ->
+    to_folsom_name(element(2, ShivMetric)).
 
 
 to_folsom_name(#relic_metric_name{category = Cat, label = Lbl, units = Units}) ->
@@ -185,7 +234,23 @@ to_relic_value(FolsomMetricValue)
     ->
     FolsomMetricValue;
 to_relic_value([{count,_}, {one,SpiralValue}]) ->
-    SpiralValue.
+    SpiralValue;
+to_relic_value(FolsomHistogramValues)
+    when is_list(FolsomHistogramValues)
+    ->
+    Stats = bear:get_statistics(FolsomHistogramValues),
+
+    Count = terlbox:getpl(Stats, n),
+    Max = terlbox:getpl(Stats, max),
+    Min = terlbox:getpl(Stats, min),
+    Mean = terlbox:getpl(Stats, mean),
+
+    #relic_metric_sample{
+        count = Count,
+        max = Max,
+        min = Min,
+        total = Mean * Count
+    }.
 
 %%
 %%  SERVER CALL HANDLERS
