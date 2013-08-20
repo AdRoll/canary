@@ -243,7 +243,7 @@ to_relic_value(FolsomHistogramValues)
     Count = terlbox:getpl(Stats, n),
     Max = terlbox:getpl(Stats, max),
     Min = terlbox:getpl(Stats, min),
-    Mean = terlbox:getpl(Stats, mean),
+    Mean = terlbox:getpl(Stats, arithmetic_mean),
 
     #relic_metric_sample{
         count = Count,
