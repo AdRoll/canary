@@ -146,10 +146,10 @@ time_call(Label, Seconds, {SampleRateNumerator, SampleRateDenominator}, CallFun)
             notify_metric(
                 {
                     histogram,
-                    #relic_metric_name{category = <<"TimedCalls">>, label = Label, units = <<"seconds">>},
+                    #relic_metric_name{category = <<"TimedCalls">>, label = Label, units = <<"milliseconds">>},
                     slide, Seconds
                 },
-                ExecTime
+                ExecTime * 1000
             ),
 
             RV
