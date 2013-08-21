@@ -16,7 +16,7 @@
 -export([
     start/5, start/6, stop/0, ping/0,
     track_metric/1, notify_metric/2,
-    time_call/3, time_call/4,
+    time_call/2, time_call/4,
     send_new_relic_metrics/1
 ]).
 
@@ -132,10 +132,10 @@ notify_metric(RelicMetric, Value) ->
 %% @doc Provides a simple convenience method for wrapping function around an execution time measurement (at
 %%  a sampled rate).
 %%
-time_call(Label, Seconds, CallFun)
+time_call(Label, CallFun)
     when is_binary(Label)
     ->
-    time_call(Label, Seconds, {1, 100}, CallFun).
+    time_call(Label, 60, {1, 100}, CallFun).
 
 time_call(Label, Seconds, {SampleRateNumerator, SampleRateDenominator}, CallFun)
     when is_binary(Label)
