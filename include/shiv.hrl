@@ -25,9 +25,9 @@
 %%
 
 -record(librato_config, {
-    user_name,
-    api_token,
-    source
+    user_name :: binary(),
+    api_token :: binary(),
+    source :: is_list(binary())
 }).
 
 

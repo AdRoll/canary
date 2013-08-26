@@ -10,20 +10,23 @@
 -define(LIBRATO_METRICS_POST_ENDPOINT, "metrics-api.librato.com/v1/metrics").
 -define(LIBRATO_METRICS_POST_TRIES, 3).
 
+-define(SEP, <<".">>).
+
+
 %%
 %%  Contains functions for posting metrics to NewRelic via their REST api.
 %%
 
 
 %% @doc Posts shiv metrics via librato API call
-send_metrics(#librato_config{user_name = UserName, api_token = APIToken}, HostName, Metrics) ->
-    post_metrics_report(UserName, APIToken, HostName, Metrics).
+send_metrics(#librato_config{user_name = UserName, api_token = APIToken, source = Source}, HostName, Metrics) ->
+    post_metrics_report(UserName, APIToken, Source, HostName, Metrics).
 
 
-post_metrics_report(UserName, APIToken, Host, Metrics) ->
+post_metrics_report(UserName, APIToken, Source, Host, Metrics) ->
     JsonBody = {struct,
         [
-            {source, Host}
+            {source, terlbox:bjoin(Source ++ [terlbox:tobin(Host)], ?SEP)}
             | to_metrics_json(Metrics)
         ]
     },
@@ -107,9 +110,9 @@ to_metric_value_json(histogram, {histogram, Count, Sum, Max, Min}) ->
 
 
 to_librato_name(#shiv_metric_name{category = Category, label = Label}) ->
-    terlbox:bjoin([Category, to_metrics_label_str(Label)], <<":">>).
+    terlbox:bjoin([Category, to_metrics_label_str(Label)], ?SEP).
 
 to_metrics_label_str(Label) when is_binary(Label) ->
     Label;
 to_metrics_label_str(Label) when is_list(Label) ->
-    terlbox:bjoin(Label, <<":">>).
+    terlbox:bjoin(Label, ?SEP).
