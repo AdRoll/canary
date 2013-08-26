@@ -66,7 +66,7 @@ to_metrics_json(Metrics) ->
             to_metrics_json(
                 gauge,
                 [ Gauge || Gauge = {gauge, _} <- Metrics ],
-                to_metric_json(
+                to_metrics_json(
                     histogram,
                     [ Histogram || Histogram = {histogram, _, _, _, _} <- Metrics ]
                 )
