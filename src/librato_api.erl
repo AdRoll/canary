@@ -30,7 +30,7 @@ post_metrics_report(UserName, APIToken, Host, Metrics) ->
 
     post_metrics_report__(
         % NOTE: librato authenticates via https - UserName MUST be url encoded!
-        <<"https://", UserName/binary, ":", APIToken/binary, "@", ?LIBRATO_METRICS_POST_ENDPOINT>>,
+        terlbox:str(<<"https://", UserName/binary, ":", APIToken/binary, "@", ?LIBRATO_METRICS_POST_ENDPOINT>>),
         iolist_to_binary(terlbox:tojson(JsonBody)),
         0
     ).
