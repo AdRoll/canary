@@ -216,8 +216,11 @@ folsom_metric_name(ShivMetric) when is_tuple(ShivMetric) ->
 to_folsom_name(#shiv_metric_name{category = Cat, label = Lbl, units = Units}) ->
     terlbox:bjoin([Cat, to_folsom_label_name(Lbl), Units], <<":">>).
 
-to_folsom_label_name(Lbl) ->
-    terlbox:bjoin(Lbl, <<"|">>).
+
+to_folsom_label_name(Lbl) when is_list(Lbl) ->
+    terlbox:bjoin(Lbl, <<"|">>);
+to_folsom_label_name(Lbl) when is_binary(Lbl) ->
+    Lbl.
 
 
 to_shiv_name(FolsomMetricName) ->
