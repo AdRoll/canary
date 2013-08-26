@@ -127,7 +127,9 @@ to_metric_label_str(Label) when is_list(Label) ->
     terlbox:bjoin(Label, <<"/">>).
 
 
-to_metric_value_json(MetricValue) when is_float(MetricValue); is_integer(MetricValue) ->
+to_metric_value_json({counter, MetricValue}) when is_float(MetricValue); is_integer(MetricValue) ->
+    MetricValue;
+to_metric_value_json({gauge, MetricValue}) when is_float(MetricValue); is_integer(MetricValue) ->
     MetricValue;
 to_metric_value_json(MetricSample = #histogram_sample{count = Count, total = Total, max = Max, min = Min}) ->
     attach_sum_of_squares(
