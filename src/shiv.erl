@@ -22,7 +22,7 @@
 
 -include("shiv.hrl").
 
--define(METRICS_REPORT_INTERVAL, 6000).
+-define(METRICS_REPORT_INTERVAL, 60000).
 
 -record(server_state, {
     host_name,
