@@ -45,6 +45,9 @@ post_metrics_report__(_Url, _Body, Tries)
     lager:error("Librato metrics post completely failed"),
     error;
 post_metrics_report__(Url, Body, Tries) ->
+
+    lager:error("Posting to librato API: url=~p, body=~p"),
+
     case catch(
         httpc:request(
             post,
