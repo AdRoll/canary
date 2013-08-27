@@ -88,7 +88,7 @@ post_metric_report__({Headers, Body}, Tries) ->
         {ok, {{_, 200, _}, _Headers, _ResponseBody}} ->
             ok;
         E ->
-            lager:error("Error while posting new relic metrics", [E]),
+            lager:error("Error while posting new relic metrics ~p", [E]),
             post_metric_report__({Headers, Body}, Tries+1)
     end.
 
