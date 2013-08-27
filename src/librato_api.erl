@@ -74,7 +74,7 @@ to_metrics_json(Metrics) ->
                 [ Gauge || Gauge = {gauge, _} <- Metrics ],
                 to_metrics_json(
                     histogram,
-                    [ Histogram || Histogram = {histogram, _, _, _, _} <- Metrics ],
+                    [ Histogram || Histogram = #histogram_sample{} <- Metrics ],
                     []
                 )
             )
@@ -100,16 +100,25 @@ to_metric_json(Type, {MetricName, MetricValue}) ->
 
 
 to_metric_value_json(gauge, {gauge, Value}) ->
-    [{value, Value}];
+    {struct,
+        [{value, Value}]
+    };
 to_metric_value_json(counter, {counter, Value}) ->
-    [{value, Value}];
-to_metric_value_json(histogram, {histogram, Count, Sum, Max, Min}) ->
-    [
-        {count, Count},
-        {sum, Sum},
-        {max, Max},
-        {min, Min}
-    ].
+    {struct,
+        [{value, Value}]
+    };
+to_metric_value_json(
+    histogram,
+    #histogram_sample{count=Count, total=Sum, max=Max, min=Min})
+    ->
+    {struct,
+        [
+            {count, Count},
+            {sum, Sum},
+            {max, Max},
+            {min, Min}
+        ]
+    }.
 
 
 to_librato_name(#shiv_metric_name{category = Category, label = Label}) ->
