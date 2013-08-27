@@ -14,60 +14,59 @@
 
 %% api
 -export([
-    start/5, start/6, stop/0, ping/0,
+    start/2, start/3, stop/0, ping/0,
     track_metric/1, notify_metric/2,
     time_call/2, time_call/4,
-    send_new_relic_metrics/1
+    send_metrics_report/0
 ]).
 
 -include("shiv.hrl").
 
+-define(METRICS_REPORT_INTERVAL, 60000).
+
 -record(server_state, {
     host_name,
     tracked_metrics,
-    new_relic_guid,
-    new_relic_entity_name,
-    new_relic_license,
-    new_relic_report_pc   % TRef representing periodic call to upload metrics via new_relic_api
+    metrics_client_config,
+    client_sync_pc   % TRef representing periodic call to sync client metrics via respective API
 }).
 
 
-start(NewRelicGuid, NewRelicEntityName, HostName, NewRelicLicense, UseCompression) ->
-    start(NewRelicGuid, NewRelicEntityName, HostName, NewRelicLicense, UseCompression, []).
+start(HostName, MetricsClientConfig) ->
+    start(HostName, MetricsClientConfig, []).
 
-start(NewRelicGuid, NewRelicEntityName, HostName, NewRelicLicense, UseCompression, InitialShivMetrics) ->
+start(HostName, MetricsClientConfig, InitialShivMetrics) ->
     lager:info("Starting shiv..."),
     gen_server:start_link(
         {local, ?MODULE}, ?MODULE,
-        [NewRelicGuid, NewRelicEntityName, HostName, NewRelicLicense, UseCompression, InitialShivMetrics], []
+        [HostName, MetricsClientConfig, InitialShivMetrics], []
     ).
 
 stop() ->
     gen_server:cast(?MODULE, stop).
 
-init([NewRelicGuid, NewRelicEntityName, HostName, NewRelicLicense, UseCompression, ShivMetrics]) ->
+init([HostName, MetricsClientConfig, ShivMetrics]) ->
     process_flag(trap_exit, true),
     lager:info("Initializing shiv..."),
 
     % start folsom metrics application, if it's not already started
     application:start(folsom),
 
-    % report call counts and blocks every minute to cloud watch.
-    NewRelicReportPC = timer:apply_interval(60000, shiv, send_new_relic_metrics, [UseCompression]),
-
     % initialize all metrics
     init_metrics(ShivMetrics),
+
+    % report call counts and blocks every minute to cloud watch.
+    NewRelicReportPC = timer:apply_interval(?METRICS_REPORT_INTERVAL, shiv, send_metrics_report, []),
 
     State = #server_state{
             host_name = HostName,
             tracked_metrics = ShivMetrics,
-            new_relic_guid = NewRelicGuid,
-            new_relic_entity_name = NewRelicEntityName,
-            new_relic_license = NewRelicLicense,
-            new_relic_report_pc = NewRelicReportPC
+            metrics_client_config = MetricsClientConfig,
+            client_sync_pc = NewRelicReportPC
     },
 
     lager:info("Finished initializing shiv: ~p", [State]),
+
     {ok, State}.
 
 
@@ -80,8 +79,8 @@ ping() ->
 
 %%
 %% @doc Wired up as periodic call.  Pulls all tracked metric values from folsom
-%%  via reserved tag, and forwards to new relic via api.
-send_new_relic_metrics(UseCompression) ->
+%%  via reserved tag, and forwards to respective API call.
+send_metrics_report() ->
     FolsomMetrics = case catch(folsom_metrics:get_metrics_value(shiv)) of
         Metrics when is_list(Metrics) ->
             Metrics;
@@ -90,16 +89,14 @@ send_new_relic_metrics(UseCompression) ->
             []
     end,
 
-    RelicMetrics = build_relic_metrics(FolsomMetrics, []),
-
-    gen_server:cast(?MODULE, {send_new_relic_metrics, RelicMetrics, UseCompression}).
+    gen_server:cast(?MODULE, {send_metrics_report, FolsomMetrics}).
 
 
 %%
 %% @doc Allows for the tracking of some additional metric not originally posted as
 %%  part of the server initialization.
 %%
-track_metric(RelicMetricName = #relic_metric_name{}) ->
+track_metric(RelicMetricName = #shiv_metric_name{}) ->
     lager:error("Can't track a metric by name alone: ~p", [RelicMetricName]);
 track_metric(ShivMetric) ->
     init_metric(ShivMetric),
@@ -114,13 +111,13 @@ track_metric(ShivMetric) ->
 %%
 %% @doc Notifies underlying folsom metric of some event.
 %%
-notify_metric(RelicMetric, Value) ->
+notify_metric(ShivMetric, Value) ->
     erlang:spawn(
         fun() ->
             % NOTE: start tracking on demand.
-            case folsom_metrics:notify({folsom_metric_name(RelicMetric), Value}) of
+            case folsom_metrics:notify({folsom_metric_name(ShivMetric), Value}) of
                 {error, _, _} ->
-                    track_metric(RelicMetric);
+                    track_metric(ShivMetric);
                 ok ->
                     ok
             end
@@ -151,7 +148,11 @@ time_call(Label, Seconds, {SampleRateNumerator, SampleRateDenominator}, CallFun)
             notify_metric(
                 {
                     histogram,
-                    #relic_metric_name{category = <<"TimedCalls">>, label = Label, units = <<"milliseconds">>},
+                    #shiv_metric_name{
+                            category = <<"TimedCalls">>,
+                            label = Label,
+                            units = <<"milliseconds">>
+                    },
                     slide, Seconds
                 },
                 ExecTime * 1000
@@ -188,21 +189,6 @@ init_metrics(ShivMetrics) ->
     [init_metric(ShivMetric) || ShivMetric <- ShivMetrics].
 
 
-%%
-%% @doc Construct relic metrics from underlying tracked folsom
-%%  metrics to forward to new relic via the api.
-%%
-build_relic_metrics([], Acc) ->
-    Acc;
-build_relic_metrics([FolsomMetric | Rest], Acc) ->
-    build_relic_metrics(
-        Rest, [build_relic_metric(FolsomMetric) | Acc]
-    ).
-
-build_relic_metric({FolsomMetricName, Value}) ->
-    {to_relic_name(FolsomMetricName), to_relic_value(Value)}.
-
-
 new_folsom_metric({histogram, MetricName}) ->
     folsom_metrics:new_histogram(to_folsom_name(MetricName));
 new_folsom_metric({histogram, MetricName, uniform, Size}) ->
@@ -221,26 +207,79 @@ new_folsom_metric({spiral, MetricName}) ->
     folsom_metrics:new_spiral(to_folsom_name(MetricName)).
 
 
-folsom_metric_name(RelicMetricName = #relic_metric_name{}) ->
+folsom_metric_name(RelicMetricName = #shiv_metric_name{}) ->
     to_folsom_name(RelicMetricName);
 folsom_metric_name(ShivMetric) when is_tuple(ShivMetric) ->
     to_folsom_name(element(2, ShivMetric)).
 
 
-to_folsom_name(#relic_metric_name{category = Cat, label = Lbl, units = Units}) ->
-    terlbox:bjoin([Cat, Lbl, Units], <<":">>).
+to_folsom_name(#shiv_metric_name{category = Cat, label = Lbl, units = Units}) ->
+    terlbox:bjoin([Cat, to_folsom_label_name(Lbl), Units], <<":">>).
 
-to_relic_name(FolsomMetricName) ->
+
+to_folsom_label_name(Lbl) when is_list(Lbl) ->
+    terlbox:bjoin(Lbl, <<"|">>);
+to_folsom_label_name(Lbl) when is_binary(Lbl) ->
+    Lbl.
+
+
+to_shiv_name(FolsomMetricName) ->
     [Cat, Lbl, Units] = terlbox:bsplit(FolsomMetricName, <<":">>),
-    #relic_metric_name{category = Cat, label = Lbl, units = Units}.
+    #shiv_metric_name{
+            category = Cat,
+            label = to_shiv_label_name(Lbl),
+            units = Units
+    }.
 
-to_relic_value(FolsomMetricValue)
+to_shiv_label_name(Lbl) ->
+    case terlbox:bsplit(Lbl, <<"|">>) of
+        [SingleLbl] -> SingleLbl;
+        Lbls -> Lbls
+    end.
+
+
+%%
+%% METRIC CLIENT FUNCTIONS
+%%
+
+%% @doc Sends metrics report to respective client API
+send_metrics_report(MetricsClientConf = #relic_config{}, HostName, FolsomMetrics) ->
+    new_relic_api:send_metrics(
+        MetricsClientConf,
+        HostName,
+        build_client_metrics(FolsomMetrics, [])
+    );
+send_metrics_report(MetricsClientConf = #librato_config{}, HostName, FolsomMetrics) ->
+    librato_api:send_metrics(
+        MetricsClientConf,
+        HostName,
+        build_client_metrics(FolsomMetrics, [])
+    ).
+
+
+%%
+%% @doc Construct relic metrics from underlying tracked folsom
+%%  metrics to forward to new relic via the api.
+%%
+build_client_metrics([], Acc) ->
+    Acc;
+build_client_metrics([FolsomMetric | Rest], Acc) ->
+    build_client_metrics(
+        Rest,
+        [build_client_metric(FolsomMetric) | Acc]
+    ).
+
+build_client_metric({FolsomMetricName, Value}) ->
+    {to_shiv_name(FolsomMetricName), to_client_metric_value(Value)}.
+
+
+to_client_metric_value(FolsomMetricValue)
     when is_float(FolsomMetricValue); is_integer(FolsomMetricValue)
     ->
-    FolsomMetricValue;
-to_relic_value([{count,_}, {one,SpiralValue}]) ->
-    SpiralValue;
-to_relic_value(FolsomHistogramValues)
+    {gauge, FolsomMetricValue};
+to_client_metric_value([{count,_}, {one,SpiralValue}]) ->
+    {counter, SpiralValue};
+to_client_metric_value(FolsomHistogramValues)
     when is_list(FolsomHistogramValues)
     ->
     Stats = bear:get_statistics(FolsomHistogramValues),
@@ -250,12 +289,14 @@ to_relic_value(FolsomHistogramValues)
     Min = terlbox:getpl(Stats, min),
     Mean = terlbox:getpl(Stats, arithmetic_mean),
 
-    #relic_metric_sample{
+    #histogram_sample {
         count = Count,
         max = Max,
         min = Min,
         total = Mean * Count
     }.
+
+
 
 %%
 %%  SERVER CALL HANDLERS
@@ -277,21 +318,20 @@ handle_cast({track_metric, ShivMetric},
 
     {noreply, State2};
 
-
-handle_cast({send_new_relic_metrics, RelicMetrics, UseCompression},
+handle_cast({send_metrics_report, FolsomMetrics},
     State = #server_state{
             host_name = HostName,
-            new_relic_guid = NRGuid,
-            new_relic_license = NRLicense,
-            new_relic_entity_name = NREntityName
+            metrics_client_config = MetricsClientConfig
     })
     ->
     erlang:spawn(
         fun() ->
-            new_relic_api:send_metrics(NRGuid, NREntityName, HostName, NRLicense, UseCompression, RelicMetrics)
+            send_metrics_report(MetricsClientConfig, HostName, FolsomMetrics)
         end
     ),
     {noreply, State};
+
+
 
 handle_cast(stop, State) ->
     {stop, normal, State};
@@ -305,7 +345,7 @@ handle_info(Info, State) ->
     {noreply, State}.
 
 
-terminate(_Reason, #server_state{new_relic_report_pc=PC, tracked_metrics=ShivMetrics}) ->
+terminate(_Reason, #server_state{client_sync_pc =PC, tracked_metrics=ShivMetrics}) ->
     % delete all tracked metrics
     [folsom_metrics:delete_metric(folsom_metric_name(ShivMetric)) || ShivMetric <- ShivMetrics],
 

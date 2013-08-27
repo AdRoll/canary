@@ -5,7 +5,7 @@
 -include("shiv.hrl").
 
 %% API
--export([send_metric/7, send_metrics/6]).
+-export([send_metrics/3]).
 
 -define(RELIC_METRICS_POST_ENDPOINT, "https://platform-api.newrelic.com/platform/v1/metrics").
 -define(RELIC_METRICS_POST_TRIES, 3).
@@ -14,16 +14,25 @@
 %%  Contains functions for posting metrics to NewRelic via their REST api.
 %%
 
-send_metric(Guid, EntityName, HostName, LicenseKey, UseCompression, RelicMetricName, RelicMetricValue) ->
-    send_metrics(Guid, EntityName, HostName, LicenseKey, UseCompression, [{RelicMetricName, RelicMetricValue}]).
 
-send_metrics(Guid, EntityName, HostName, LicenseKey, UseCompression, Metrics) ->
-    post_metric_report(Guid, EntityName, HostName, LicenseKey, UseCompression, Metrics).
+send_metrics(
+    #relic_config{
+            guid = Guid,
+            entity_name = EntityName,
+            license = LicenseKey,
+            use_compression = UseCompression
+    },
+    HostName,
+    Metrics)
+    ->
+    post_metric_report(
+        Guid, EntityName, LicenseKey, UseCompression, HostName, Metrics
+    ).
 
 
 %% @doc Posts specified metrics to new relic's designated endpoint for receiving
 %%  such reports.
-post_metric_report(Guid, EntityName, HostName, LicenseKey, UseCompression, Metrics) ->
+post_metric_report(Guid, EntityName, LicenseKey, UseCompression, HostName, Metrics) ->
     BodyJson = {struct,
         [
             {agent,
@@ -79,7 +88,7 @@ post_metric_report__({Headers, Body}, Tries) ->
         {ok, {{_, 200, _}, _Headers, _ResponseBody}} ->
             ok;
         E ->
-            lager:error("Error while posting new relic metrics", [E]),
+            lager:error("Error while posting new relic metrics ~p", [E]),
             post_metric_report__({Headers, Body}, Tries+1)
     end.
 
@@ -106,12 +115,23 @@ to_metrics_json__([Metric | RestMetrics], {struct, MetricsAcc}) ->
 to_metric_json({MetricName, MetricValue}) ->
     {to_metric_str(MetricName), to_metric_value_json(MetricValue)}.
 
-to_metric_str(#relic_metric_name{category = Cat, label = Label, units = Units}) ->
-    <<"Component/", Cat/binary, "/", Label/binary, "[", Units/binary, "]">>.
 
-to_metric_value_json(MetricValue) when is_float(MetricValue); is_integer(MetricValue) ->
+to_metric_str(#shiv_metric_name{category = Cat, label = Label, units = Units}) ->
+    LabelStr = to_metric_label_str(Label),
+    <<"Component/", Cat/binary, "/", LabelStr/binary, "[", Units/binary, "]">>.
+
+
+to_metric_label_str(Label) when is_binary(Label) ->
+    Label;
+to_metric_label_str(Label) when is_list(Label) ->
+    terlbox:bjoin(Label, <<"/">>).
+
+
+to_metric_value_json({counter, MetricValue}) when is_float(MetricValue); is_integer(MetricValue) ->
     MetricValue;
-to_metric_value_json(MetricSample = #relic_metric_sample{count = Count, total = Total, max = Max, min = Min}) ->
+to_metric_value_json({gauge, MetricValue}) when is_float(MetricValue); is_integer(MetricValue) ->
+    MetricValue;
+to_metric_value_json(MetricSample = #histogram_sample{count = Count, total = Total, max = Max, min = Min}) ->
     attach_sum_of_squares(
         MetricSample,
         {struct,
@@ -124,9 +144,9 @@ to_metric_value_json(MetricSample = #relic_metric_sample{count = Count, total = 
         }
     ).
 
-attach_sum_of_squares(#relic_metric_sample{sum_of_squares = undefined}, MetricJson) ->
+attach_sum_of_squares(#histogram_sample{sum_of_squares = undefined}, MetricJson) ->
     MetricJson;
-attach_sum_of_squares(#relic_metric_sample{sum_of_squares = SumOfSqrs}, {struct, MetricProps}) ->
+attach_sum_of_squares(#histogram_sample{sum_of_squares = SumOfSqrs}, {struct, MetricProps}) ->
     {struct, [{sum_of_squares, SumOfSqrs} | MetricProps]}.
 
 
