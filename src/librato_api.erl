@@ -46,7 +46,7 @@ post_metrics_report__(_Url, _Body, Tries)
     error;
 post_metrics_report__(Url, Body, Tries) ->
 
-    lager:error("Posting to librato API: url=~p, body=~p"),
+    lager:error("Posting to librato API: url=~p, body=~p", [Url, Body]),
 
     case catch(
         httpc:request(
