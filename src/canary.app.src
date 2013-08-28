@@ -1,6 +1,6 @@
-{application, shiv,
+{application, canary,
     [
-        {description,"New relic plugin wired up to folsom metrics."},
+        {description,"Dashboard publishing for folsom metrics."},
         {vsn,"1.0.0"},
         {registered,[]},
         {env,[]},
