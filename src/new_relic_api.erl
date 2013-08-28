@@ -2,7 +2,7 @@
 -module(new_relic_api).
 -author("jesse").
 
--include("shiv.hrl").
+-include("canary.hrl").
 
 %% API
 -export([send_metrics/3]).
@@ -116,7 +116,7 @@ to_metric_json({MetricName, MetricValue}) ->
     {to_metric_str(MetricName), to_metric_value_json(MetricValue)}.
 
 
-to_metric_str(#shiv_metric_name{category = Cat, label = Label, units = Units}) ->
+to_metric_str(#canary_metric_name{category = Cat, label = Label, units = Units}) ->
     LabelStr = to_metric_label_str(Label),
     <<"Component/", Cat/binary, "/", LabelStr/binary, "[", Units/binary, "]">>.
 

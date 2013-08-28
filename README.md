@@ -1,4 +1,4 @@
-shiv
+Canart
 ====
 
-New relic plugin wired up to Erlang's folsom metrics project. 
+Dashboard publishing Erlang's folsom metrics project.
