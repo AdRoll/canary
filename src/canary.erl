@@ -1,5 +1,5 @@
 %% Copyright
--module(shiv).
+-module(canary).
 -author("jesse").
 
 -behavior(gen_server).
@@ -20,7 +20,7 @@
     send_metrics_report/0
 ]).
 
--include("shiv.hrl").
+-include("canary.hrl").
 
 -define(METRICS_REPORT_INTERVAL, 60000).
 
@@ -35,37 +35,37 @@
 start(HostName, MetricsClientConfig) ->
     start(HostName, MetricsClientConfig, []).
 
-start(HostName, MetricsClientConfig, InitialShivMetrics) ->
-    lager:info("Starting shiv..."),
+start(HostName, MetricsClientConfig, InitialCanaryMetrics) ->
+    lager:info("Starting canary..."),
     gen_server:start_link(
         {local, ?MODULE}, ?MODULE,
-        [HostName, MetricsClientConfig, InitialShivMetrics], []
+        [HostName, MetricsClientConfig, InitialCanaryMetrics], []
     ).
 
 stop() ->
     gen_server:cast(?MODULE, stop).
 
-init([HostName, MetricsClientConfig, ShivMetrics]) ->
+init([HostName, MetricsClientConfig, CanaryMetrics]) ->
     process_flag(trap_exit, true),
-    lager:info("Initializing shiv..."),
+    lager:info("Initializing canary..."),
 
     % start folsom metrics application, if it's not already started
     application:start(folsom),
 
     % initialize all metrics
-    init_metrics(ShivMetrics),
+    init_metrics(CanaryMetrics),
 
     % report call counts and blocks every minute to cloud watch.
-    NewRelicReportPC = timer:apply_interval(?METRICS_REPORT_INTERVAL, shiv, send_metrics_report, []),
+    NewRelicReportPC = timer:apply_interval(?METRICS_REPORT_INTERVAL, canary, send_metrics_report, []),
 
     State = #server_state{
             host_name = HostName,
-            tracked_metrics = ShivMetrics,
+            tracked_metrics = CanaryMetrics,
             metrics_client_config = MetricsClientConfig,
             client_sync_pc = NewRelicReportPC
     },
 
-    lager:info("Finished initializing shiv: ~p", [State]),
+    lager:info("Finished initializing canary: ~p", [State]),
 
     {ok, State}.
 
@@ -81,7 +81,7 @@ ping() ->
 %% @doc Wired up as periodic call.  Pulls all tracked metric values from folsom
 %%  via reserved tag, and forwards to respective API call.
 send_metrics_report() ->
-    FolsomMetrics = case catch(folsom_metrics:get_metrics_value(shiv)) of
+    FolsomMetrics = case catch(folsom_metrics:get_metrics_value(canary)) of
         Metrics when is_list(Metrics) ->
             Metrics;
         E ->
@@ -96,11 +96,11 @@ send_metrics_report() ->
 %% @doc Allows for the tracking of some additional metric not originally posted as
 %%  part of the server initialization.
 %%
-track_metric(RelicMetricName = #shiv_metric_name{}) ->
+track_metric(RelicMetricName = #canary_metric_name{}) ->
     lager:error("Can't track a metric by name alone: ~p", [RelicMetricName]);
-track_metric(ShivMetric) ->
-    init_metric(ShivMetric),
-    gen_server:cast(?MODULE, {track_metric, ShivMetric}).
+track_metric(CanaryMetric) ->
+    init_metric(CanaryMetric),
+    gen_server:cast(?MODULE, {track_metric, CanaryMetric}).
 
 
 %%
@@ -111,13 +111,13 @@ track_metric(ShivMetric) ->
 %%
 %% @doc Notifies underlying folsom metric of some event.
 %%
-notify_metric(ShivMetric, Value) ->
+notify_metric(CanaryMetric, Value) ->
     erlang:spawn(
         fun() ->
             % NOTE: start tracking on demand.
-            case folsom_metrics:notify({folsom_metric_name(ShivMetric), Value}) of
+            case folsom_metrics:notify({folsom_metric_name(CanaryMetric), Value}) of
                 {error, _, _} ->
-                    track_metric(ShivMetric);
+                    track_metric(CanaryMetric);
                 ok ->
                     ok
             end
@@ -148,7 +148,7 @@ time_call(Label, Seconds, {SampleRateNumerator, SampleRateDenominator}, CallFun)
             notify_metric(
                 {
                     histogram,
-                    #shiv_metric_name{
+                    #canary_metric_name{
                             category = <<"TimedCalls">>,
                             label = Label,
                             units = <<"milliseconds">>
@@ -176,17 +176,17 @@ time_call(Label, Seconds, {SampleRateNumerator, SampleRateDenominator}, CallFun)
 %% @doc Creates a backing folsom metric in the expected format,
 %%  and appropriately tagged, so we can retrieve it easily.
 %%
--spec init_metric(shiv_metric()) -> ok.
-init_metric(ShivMetric) ->
-    new_folsom_metric(ShivMetric),
+-spec init_metric(canary_metric()) -> ok.
+init_metric(CanaryMetric) ->
+    new_folsom_metric(CanaryMetric),
     folsom_metrics:tag_metric(
-        folsom_metric_name(ShivMetric),
-        shiv
+        folsom_metric_name(CanaryMetric),
+        canary
     ),
     ok.
 
-init_metrics(ShivMetrics) ->
-    [init_metric(ShivMetric) || ShivMetric <- ShivMetrics].
+init_metrics(CanaryMetrics) ->
+    [init_metric(CanaryMetric) || CanaryMetric <- CanaryMetrics].
 
 
 new_folsom_metric({histogram, MetricName}) ->
@@ -207,13 +207,13 @@ new_folsom_metric({spiral, MetricName}) ->
     folsom_metrics:new_spiral(to_folsom_name(MetricName)).
 
 
-folsom_metric_name(RelicMetricName = #shiv_metric_name{}) ->
+folsom_metric_name(RelicMetricName = #canary_metric_name{}) ->
     to_folsom_name(RelicMetricName);
-folsom_metric_name(ShivMetric) when is_tuple(ShivMetric) ->
-    to_folsom_name(element(2, ShivMetric)).
+folsom_metric_name(CanaryMetric) when is_tuple(CanaryMetric) ->
+    to_folsom_name(element(2, CanaryMetric)).
 
 
-to_folsom_name(#shiv_metric_name{category = Cat, label = Lbl, units = Units}) ->
+to_folsom_name(#canary_metric_name{category = Cat, label = Lbl, units = Units}) ->
     terlbox:bjoin([Cat, to_folsom_label_name(Lbl), Units], <<":">>).
 
 
@@ -223,15 +223,15 @@ to_folsom_label_name(Lbl) when is_binary(Lbl) ->
     Lbl.
 
 
-to_shiv_name(FolsomMetricName) ->
+to_canary_name(FolsomMetricName) ->
     [Cat, Lbl, Units] = terlbox:bsplit(FolsomMetricName, <<":">>),
-    #shiv_metric_name{
+    #canary_metric_name{
             category = Cat,
-            label = to_shiv_label_name(Lbl),
+            label = to_canary_label_name(Lbl),
             units = Units
     }.
 
-to_shiv_label_name(Lbl) ->
+to_canary_label_name(Lbl) ->
     case terlbox:bsplit(Lbl, <<"|">>) of
         [SingleLbl] -> SingleLbl;
         Lbls -> Lbls
@@ -270,7 +270,7 @@ build_client_metrics([FolsomMetric | Rest], Acc) ->
     ).
 
 build_client_metric({FolsomMetricName, Value}) ->
-    {to_shiv_name(FolsomMetricName), to_client_metric_value(Value)}.
+    {to_canary_name(FolsomMetricName), to_client_metric_value(Value)}.
 
 
 to_client_metric_value(FolsomMetricValue)
@@ -306,14 +306,14 @@ handle_call({ping}, _From, State) ->
     {reply, pong, State}.
 
 
-handle_cast({track_metric, ShivMetric},
+handle_cast({track_metric, CanaryMetric},
     State = #server_state{tracked_metrics = TrackedMetrics})
     ->
 
     % Don't double track.
-    State2 = case lists:member(ShivMetric, TrackedMetrics) of
+    State2 = case lists:member(CanaryMetric, TrackedMetrics) of
         true -> State;
-        false -> State#server_state{tracked_metrics = [ShivMetric | TrackedMetrics]}
+        false -> State#server_state{tracked_metrics = [CanaryMetric | TrackedMetrics]}
     end,
 
     {noreply, State2};
@@ -341,13 +341,13 @@ handle_cast(_Msg, State) ->
 
 
 handle_info(Info, State) ->
-    lager:error("Unexpected shiv message received: ~p", [Info]),
+    lager:error("Unexpected canary message received: ~p", [Info]),
     {noreply, State}.
 
 
-terminate(_Reason, #server_state{client_sync_pc =PC, tracked_metrics=ShivMetrics}) ->
+terminate(_Reason, #server_state{client_sync_pc =PC, tracked_metrics=CanaryMetrics}) ->
     % delete all tracked metrics
-    [folsom_metrics:delete_metric(folsom_metric_name(ShivMetric)) || ShivMetric <- ShivMetrics],
+    [folsom_metrics:delete_metric(folsom_metric_name(CanaryMetric)) || CanaryMetric <- CanaryMetrics],
 
     % cancel periodic timer on server termination
     timer:cancel(PC),

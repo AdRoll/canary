@@ -1,24 +1,24 @@
--ifndef(shiv_hrl).
--define(shiv_hrl, true).
+-ifndef(canary_hrl).
+-define(canary_hrl, true).
 
 -define(RELIC_PLUGIN_VERSION, <<"1.0.0">>).
 -define(RELIC_APPLICATION_NAME, <<"Folsom Shiv">>).
 
--record(shiv_metric_name, {
+-record(canary_metric_name, {
     category :: binary(),
     label :: binary() | list(binary()),
     units :: binary()
 }).
 
--type shiv_metric() ::
-    {histogram, #shiv_metric_name{}}
-    | {histogram, #shiv_metric_name{}, uniform, integer()}
-    | {histogram, #shiv_metric_name{}, exdec, integer(), integer()}
-    | {histogram, #shiv_metric_name{}, slide, integer()}
-    | {histogram, #shiv_metric_name{}, slide_uniform, {integer(), integer()}}
-    | {gauge, #shiv_metric_name{}}
-    | {counter, #shiv_metric_name{}}
-    | {spiral, #shiv_metric_name{}}.
+-type canary_metric() ::
+    {histogram, #canary_metric_name{}}
+    | {histogram, #canary_metric_name{}, uniform, integer()}
+    | {histogram, #canary_metric_name{}, exdec, integer(), integer()}
+    | {histogram, #canary_metric_name{}, slide, integer()}
+    | {histogram, #canary_metric_name{}, slide_uniform, {integer(), integer()}}
+    | {gauge, #canary_metric_name{}}
+    | {counter, #canary_metric_name{}}
+    | {spiral, #canary_metric_name{}}.
 
 %%
 %%  LIBRATO
@@ -56,7 +56,7 @@
     {gauge, client_metric_num()}
     | {counter, client_metric_num()}
     | #histogram_sample{}.
--type client_metric() :: {#shiv_metric_name{}, client_metric_value()}.
+-type client_metric() :: {#canary_metric_name{}, client_metric_value()}.
 
 
 

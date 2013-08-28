@@ -5,7 +5,7 @@
 %% API
 -export([send_metrics/3]).
 
--include("shiv.hrl").
+-include("canary.hrl").
 
 -define(LIBRATO_METRICS_POST_ENDPOINT, "https://metrics-api.librato.com/v1/metrics").
 -define(LIBRATO_METRICS_POST_TRIES, 3).
@@ -18,7 +18,7 @@
 %%
 
 
-%% @doc Posts shiv metrics via librato API call
+%% @doc Posts canary metrics via librato API call
 send_metrics(#librato_config{user_name = UserName, api_token = APIToken, source = Source}, HostName, Metrics) ->
     post_metrics_report(UserName, APIToken, Source, HostName, Metrics).
 
@@ -156,7 +156,7 @@ to_metric_value_json_params(
     ].
 
 
-to_librato_name(#shiv_metric_name{category = Category, label = Label}) ->
+to_librato_name(#canary_metric_name{category = Category, label = Label}) ->
     terlbox:bjoin([Category, to_metrics_label_str(Label)], ?SEP).
 
 to_metrics_label_str(Label) when is_binary(Label) ->
