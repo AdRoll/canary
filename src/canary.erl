@@ -137,13 +137,13 @@ time_call(Label, CallFun)
 time_call(Label, Seconds, {SampleRateNumerator, SampleRateDenominator}, CallFun)
     when is_binary(Label)
     ->
-    StartTime = terlbox:pytime(os:timestamp()),
+    StartTime = canary_utils:pytime(os:timestamp()),
 
     RV = CallFun(),
 
-    terlbox:rate_limited_exec(
+    canary_utils:rate_limited_exec(
         fun() ->
-            ExecTime = terlbox:pytime(os:timestamp()) - StartTime,
+            ExecTime = canary_utils:pytime(os:timestamp()) - StartTime,
 
             notify_metric(
                 {
@@ -214,17 +214,17 @@ folsom_metric_name(CanaryMetric) when is_tuple(CanaryMetric) ->
 
 
 to_folsom_name(#canary_metric_name{category = Cat, label = Lbl, units = Units}) ->
-    terlbox:bjoin([Cat, to_folsom_label_name(Lbl), Units], <<":">>).
+    canary_utils:bjoin([Cat, to_folsom_label_name(Lbl), Units], <<":">>).
 
 
 to_folsom_label_name(Lbl) when is_list(Lbl) ->
-    terlbox:bjoin(Lbl, <<"|">>);
+    canary_utils:bjoin(Lbl, <<"|">>);
 to_folsom_label_name(Lbl) when is_binary(Lbl) ->
     Lbl.
 
 
 to_canary_name(FolsomMetricName) ->
-    [Cat, Lbl, Units] = terlbox:bsplit(FolsomMetricName, <<":">>),
+    [Cat, Lbl, Units] = canary_utils:bsplit(FolsomMetricName, <<":">>),
     #canary_metric_name{
             category = Cat,
             label = to_canary_label_name(Lbl),
@@ -232,7 +232,7 @@ to_canary_name(FolsomMetricName) ->
     }.
 
 to_canary_label_name(Lbl) ->
-    case terlbox:bsplit(Lbl, <<"|">>) of
+    case canary_utils:bsplit(Lbl, <<"|">>) of
         [SingleLbl] -> SingleLbl;
         Lbls -> Lbls
     end.
@@ -284,10 +284,10 @@ to_client_metric_value(FolsomHistogramValues)
     ->
     Stats = bear:get_statistics(FolsomHistogramValues),
 
-    Count = terlbox:getpl(Stats, n),
-    Max = terlbox:getpl(Stats, max),
-    Min = terlbox:getpl(Stats, min),
-    Mean = terlbox:getpl(Stats, arithmetic_mean),
+    Count = canary_utils:getpl(Stats, n),
+    Max = canary_utils:getpl(Stats, max),
+    Min = canary_utils:getpl(Stats, min),
+    Mean = canary_utils:getpl(Stats, arithmetic_mean),
 
     #histogram_sample {
         count = Count,
