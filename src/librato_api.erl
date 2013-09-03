@@ -35,7 +35,7 @@ post_metrics_report(UserName, APIToken, Source, Host, Metrics) ->
 
             JsonBody = {struct,
                 [
-                    {source, terlbox:bjoin(Source ++ [terlbox:tobin(Host)], ?SEP)}
+                    {source, canary_utils:bjoin(Source ++ [canary_utils:tobin(Host)], ?SEP)}
                     | MetricsJson
                 ]
             },
@@ -44,15 +44,15 @@ post_metrics_report(UserName, APIToken, Source, Host, Metrics) ->
 
             post_metrics_report__(
                 % NOTE: librato authenticates via https
-                terlbox:str(?LIBRATO_METRICS_POST_ENDPOINT),
+                canary_utils:str(?LIBRATO_METRICS_POST_ENDPOINT),
                 post_metrics_authorization_header(UserName, APIToken),
-                iolist_to_binary(terlbox:tojson(JsonBody)),
+                iolist_to_binary(canary_utils:tojson(JsonBody)),
                 0
             )
     end.
 
 post_metrics_authorization_header(UserName, APIToken) ->
-    Encoded = base64:encode_to_string(lists:append([terlbox:str(UserName), ":", terlbox:str(APIToken)])),
+    Encoded = base64:encode_to_string(lists:append([canary_utils:str(UserName), ":", canary_utils:str(APIToken)])),
     {"Authorization", "Basic " ++ Encoded}.
 
 post_metrics_report__(_Url, _AuthHeader, _Body, Tries)
@@ -157,9 +157,9 @@ to_metric_value_json_params(
 
 
 to_librato_name(#canary_metric_name{category = Category, label = Label}) ->
-    terlbox:bjoin([Category, to_metrics_label_str(Label)], ?SEP).
+    canary_utils:bjoin([Category, to_metrics_label_str(Label)], ?SEP).
 
 to_metrics_label_str(Label) when is_binary(Label) ->
     Label;
 to_metrics_label_str(Label) when is_list(Label) ->
-    terlbox:bjoin(Label, ?SEP).
+    canary_utils:bjoin(Label, ?SEP).

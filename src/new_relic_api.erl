@@ -38,8 +38,8 @@ post_metric_report(Guid, EntityName, LicenseKey, UseCompression, HostName, Metri
             {agent,
                 {struct,
                     [
-                        {host, terlbox:tobin(HostName)},
-                        {pid, terlbox:tobin(pid_to_list(self()))},
+                        {host, canary_utils:tobin(HostName)},
+                        {pid, canary_utils:tobin(pid_to_list(self()))},
                         {version, ?RELIC_PLUGIN_VERSION}
                     ]
                 }
@@ -48,8 +48,8 @@ post_metric_report(Guid, EntityName, LicenseKey, UseCompression, HostName, Metri
                 [
                     {struct,
                         [
-                            {name, terlbox:tobin(EntityName)},
-                            {guid, terlbox:tobin(Guid)},
+                            {name, canary_utils:tobin(EntityName)},
+                            {guid, canary_utils:tobin(Guid)},
                             {duration, 60},
                             {metrics, to_metrics_json(Metrics)}
                         ]
@@ -62,7 +62,7 @@ post_metric_report(Guid, EntityName, LicenseKey, UseCompression, HostName, Metri
     post_metric_report__(
         metric_post_headers_and_body(
             LicenseKey, UseCompression,
-            iolist_to_binary(terlbox:tojson(BodyJson))
+            iolist_to_binary(canary_utils:tojson(BodyJson))
         ),
         0
     ).
@@ -124,7 +124,7 @@ to_metric_str(#canary_metric_name{category = Cat, label = Label, units = Units})
 to_metric_label_str(Label) when is_binary(Label) ->
     Label;
 to_metric_label_str(Label) when is_list(Label) ->
-    terlbox:bjoin(Label, <<"/">>).
+    canary_utils:bjoin(Label, <<"/">>).
 
 
 to_metric_value_json({counter, MetricValue}) when is_float(MetricValue); is_integer(MetricValue) ->
