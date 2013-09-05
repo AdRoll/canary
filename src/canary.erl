@@ -16,36 +16,40 @@
 -export([
     start/2, start/3, stop/0, ping/0,
     track_metric/1, notify_metric/2,
-    time_call/2, time_call/4,
-    send_metrics_report/0
+    time_call/2, time_call/4
 ]).
+
 
 -include("canary.hrl").
 
--define(METRICS_REPORT_INTERVAL, 60000).
+-define(METRICS_REPORT_INTERVAL, 60).
 
 -record(server_state, {
     host_name,
     tracked_metrics,
     metrics_client_config,
-    client_sync_pc   % TRef representing periodic call to sync client metrics via respective API
+    client_sync_pc, % TRef representing periodic call to sync client metrics via respective API
+    publish_interval :: pos_integer(),
+    next_publish_time :: pos_integer()
 }).
-
 
 start(HostName, MetricsClientConfig) ->
     start(HostName, MetricsClientConfig, []).
 
 start(HostName, MetricsClientConfig, InitialCanaryMetrics) ->
+    start(HostName, MetricsClientConfig, InitialCanaryMetrics, ?METRICS_REPORT_INTERVAL).
+
+start(HostName, MetricsClientConfig, InitialCanaryMetrics, PublishInterval) ->
     lager:info("Starting canary..."),
     gen_server:start_link(
         {local, ?MODULE}, ?MODULE,
-        [HostName, MetricsClientConfig, InitialCanaryMetrics], []
+        [HostName, MetricsClientConfig, InitialCanaryMetrics, PublishInterval], []
     ).
 
 stop() ->
     gen_server:cast(?MODULE, stop).
 
-init([HostName, MetricsClientConfig, CanaryMetrics]) ->
+init([HostName, MetricsClientConfig, CanaryMetrics, PublishInterval]) ->
     process_flag(trap_exit, true),
     lager:info("Initializing canary..."),
 
@@ -55,19 +59,33 @@ init([HostName, MetricsClientConfig, CanaryMetrics]) ->
     % initialize all metrics
     init_metrics(CanaryMetrics),
 
-    % report call counts and blocks every minute to cloud watch.
-    NewRelicReportPC = timer:apply_interval(?METRICS_REPORT_INTERVAL, canary, send_metrics_report, []),
-
     State = #server_state{
             host_name = HostName,
             tracked_metrics = CanaryMetrics,
             metrics_client_config = MetricsClientConfig,
-            client_sync_pc = NewRelicReportPC
+            publish_interval = PublishInterval
     },
 
     lager:info("Finished initializing canary: ~p", [State]),
 
-    {ok, State}.
+    {ok, heartbeat(State)}.
+
+
+next_publish_time(Interval) ->
+    next_publish_time(Interval, erlang:now()).
+
+next_publish_time(Interval, Now) ->
+    canary_utils:timestamp(((trunc(canary_utils:pytime(Now)) div Interval) * Interval) + Interval).
+
+heartbeat(#server_state{publish_interval = PublishInterval} = State) ->
+    NextPublishTime = next_publish_time(PublishInterval),
+    Time = trunc(timer:now_diff(NextPublishTime, erlang:now()) / 1000),
+    TRef = erlang:send_after(Time, canary, {heartbeat}),
+
+    State#server_state{
+        next_publish_time = NextPublishTime,
+        client_sync_pc = TRef
+    }.
 
 
 %%
@@ -76,20 +94,6 @@ init([HostName, MetricsClientConfig, CanaryMetrics]) ->
 
 ping() ->
     gen_server:call(?MODULE, {ping}).
-
-%%
-%% @doc Wired up as periodic call.  Pulls all tracked metric values from folsom
-%%  via reserved tag, and forwards to respective API call.
-send_metrics_report() ->
-    FolsomMetrics = case catch(folsom_metrics:get_metrics_value(canary)) of
-        Metrics when is_list(Metrics) ->
-            Metrics;
-        E ->
-            lager:error("Caught error pulling folsom metrics: ~p", [E]),
-            []
-    end,
-
-    gen_server:cast(?MODULE, {send_metrics_report, FolsomMetrics}).
 
 
 %%
@@ -243,17 +247,19 @@ to_canary_label_name(Lbl) ->
 %%
 
 %% @doc Sends metrics report to respective client API
-send_metrics_report(MetricsClientConf = #relic_config{}, HostName, FolsomMetrics) ->
+send_metrics_report(MetricsClientConf = #relic_config{}, HostName, FolsomMetrics, MeasureTime) ->
     new_relic_api:send_metrics(
         MetricsClientConf,
         HostName,
-        build_client_metrics(FolsomMetrics, [])
+        build_client_metrics(FolsomMetrics, []),
+        MeasureTime
     );
-send_metrics_report(MetricsClientConf = #librato_config{}, HostName, FolsomMetrics) ->
-    librato_api:send_metrics(
+send_metrics_report(MetricsClientConf = #librato_config{}, HostName, FolsomMetrics, MeasureTime) ->
+    librato_api2:send_metrics(
         MetricsClientConf,
         HostName,
-        build_client_metrics(FolsomMetrics, [])
+        build_client_metrics(FolsomMetrics, []),
+        MeasureTime
     ).
 
 
@@ -318,20 +324,6 @@ handle_cast({track_metric, CanaryMetric},
 
     {noreply, State2};
 
-handle_cast({send_metrics_report, FolsomMetrics},
-    State = #server_state{
-            host_name = HostName,
-            metrics_client_config = MetricsClientConfig
-    })
-    ->
-    erlang:spawn(
-        fun() ->
-            send_metrics_report(MetricsClientConfig, HostName, FolsomMetrics)
-        end
-    ),
-    {noreply, State};
-
-
 
 handle_cast(stop, State) ->
     {stop, normal, State};
@@ -339,7 +331,22 @@ handle_cast(stop, State) ->
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
+handle_info({heartbeat}, State) ->
 
+    #server_state{
+        metrics_client_config = Config,
+        host_name = Host,
+        next_publish_time = MeasureTime
+
+    } = State,
+
+    erlang:spawn(
+        fun() ->
+            send_metrics_report(Config, Host, folsom_metrics:get_metrics_value(canary), MeasureTime)
+        end
+    ),
+
+    {noreply, heartbeat(State)};
 handle_info(Info, State) ->
     lager:error("Unexpected canary message received: ~p", [Info]),
     {noreply, State}.
