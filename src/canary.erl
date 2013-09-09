@@ -255,7 +255,7 @@ send_metrics_report(MetricsClientConf = #relic_config{}, HostName, FolsomMetrics
         MeasureTime
     );
 send_metrics_report(MetricsClientConf = #librato_config{}, HostName, FolsomMetrics, MeasureTime) ->
-    librato_api2:send_metrics(
+    librato_api:send_metrics(
         MetricsClientConf,
         HostName,
         build_client_metrics(FolsomMetrics, []),
