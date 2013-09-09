@@ -13,19 +13,29 @@ pytime({MegaSecs, Secs, MicroSecs}) ->
     (1.0e+6 * MegaSecs) + Secs + (1.0e-6 * MicroSecs).
 
 
+timestamp(Seconds) when is_float(Seconds) ->
+    timestamp(trunc(Seconds));
+timestamp(Seconds) ->
+    {Seconds div 1000000, Seconds rem 1000000, 0}.
+
+
 %% Join binaries together.
 bjoin(List) ->
     bjoin(List, <<".">>).
+
 bjoin([], _C) ->
     <<>>;
+bjoin(Term, _C) when not is_list(Term) ->
+    Term;
 bjoin([H | Rest], BinaryChars) ->
     bjoin(H, Rest, BinaryChars).
+
 bjoin(Head, List, BinaryChars) ->
     F = fun(Current, Acc) ->
-        <<BinaryChars / binary, Current / binary, Acc / binary>>
+        <<BinaryChars/binary, Current/binary, Acc/binary>>
     end,
     JoinedRest = lists:foldr(F, <<>>, List),
-    <<Head / binary, JoinedRest / binary>>.
+    <<Head/binary, JoinedRest/binary>>.
 
 
 %% Split binaries using given binary char.
