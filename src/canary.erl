@@ -79,11 +79,7 @@ next_publish_time(Interval, Now) ->
 
 heartbeat(#server_state{publish_interval = PublishInterval} = State) ->
     NextPublishTime = next_publish_time(PublishInterval),
-    lager:error("NextPublishTime: ~p", [NextPublishTime]),
-
     Time = trunc(timer:now_diff(NextPublishTime, erlang:now()) / 1000),
-    lager:error("Time: ~p", [Time]),
-
     TRef = erlang:send_after(Time, canary, {heartbeat}),
 
     State#server_state{
@@ -259,16 +255,10 @@ send_metrics_report(MetricsClientConf = #relic_config{}, HostName, FolsomMetrics
         MeasureTime
     );
 send_metrics_report(MetricsClientConf = #librato_config{}, HostName, FolsomMetrics, MeasureTime) ->
-
-    lager:error("FolsomMetrics: ~p", [FolsomMetrics]),
-
-    ClientMetrics = build_client_metrics(FolsomMetrics, []),
-    lager:error("ClientMetrics: ~p", [ClientMetrics]),
-
     librato_api:send_metrics(
         MetricsClientConf,
         HostName,
-        ClientMetrics,
+        build_client_metrics(FolsomMetrics, []),
         MeasureTime
     ).
 
@@ -342,17 +332,12 @@ handle_cast(_Msg, State) ->
     {noreply, State}.
 
 handle_info({heartbeat}, State) ->
-    lager:error("heartbeat: ~p", [heartbeat]),
     #server_state{
         metrics_client_config = Config,
         host_name = Host,
         next_publish_time = MeasureTime
 
     } = State,
-
-    lager:error("Config: ~p", [Config]),
-    lager:error("Host: ~p", [Host]),
-
     erlang:spawn(
         fun() ->
             send_metrics_report(Config, Host, folsom_metrics:get_metrics_value(canary), MeasureTime)

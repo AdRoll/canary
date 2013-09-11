@@ -49,13 +49,7 @@ send_metrics(Config, Host, Metrics, MeasureTime) ->
 
     try to_librato_metrics(Metrics) of
         LibratoMetrics ->
-            lager:error("LibratoMetrics: ~p", [LibratoMetrics]),
-
             {Gauges, Counters} = lists:partition(fun is_gauge/1, LibratoMetrics),
-
-            lager:error("Gauges: ~p", [Gauges]),
-            lager:error("Counters: ~p", [Counters]),
-
             send_librato_metrics(Config, Host, Gauges, Counters, MeasureTime)
     catch
         _:Reason ->
@@ -68,6 +62,7 @@ send_metrics(Config, Host, Metrics, MeasureTime) ->
 
 %% @doc Posts 
 send_librato_metrics(_Config, _Host, [], [], _MeasureTime) ->
+    lager:error("No metrics"),
     ok;
 send_librato_metrics(Config, Host, Gauges, Counters, MeasureTime) ->
 
