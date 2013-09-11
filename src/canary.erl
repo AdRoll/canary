@@ -262,10 +262,13 @@ send_metrics_report(MetricsClientConf = #librato_config{}, HostName, FolsomMetri
 
     lager:error("FolsomMetrics: ~p", [FolsomMetrics]),
 
+    ClientMetrics = build_client_metrics(FolsomMetrics, []),
+    lager:error("ClientMetrics: ~p", [ClientMetrics]),
+
     librato_api:send_metrics(
         MetricsClientConf,
         HostName,
-        build_client_metrics(FolsomMetrics, []),
+        ClientMetrics,
         MeasureTime
     ).
 
