@@ -47,6 +47,10 @@
 %% @doc Post a list of metrics to Librato Metrics.
 send_metrics(Config, Host, Metrics, MeasureTime) ->
     {Gauges, Counters} = lists:partition(fun is_gauge/1, to_librato_metrics(Metrics)),
+
+    lager:error("Gauges: ~p", [Gauges]),
+    lager:error("Counters: ~p", [Counters]),
+
     send_librato_metrics(Config, Host, Gauges, Counters, MeasureTime).
 
 %% INTERNAL

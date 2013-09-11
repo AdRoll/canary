@@ -259,6 +259,9 @@ send_metrics_report(MetricsClientConf = #relic_config{}, HostName, FolsomMetrics
         MeasureTime
     );
 send_metrics_report(MetricsClientConf = #librato_config{}, HostName, FolsomMetrics, MeasureTime) ->
+
+    lager:error("FolsomMetrics: ~p", [FolsomMetrics]),
+
     librato_api:send_metrics(
         MetricsClientConf,
         HostName,
@@ -343,6 +346,9 @@ handle_info({heartbeat}, State) ->
         next_publish_time = MeasureTime
 
     } = State,
+
+    lager:error("Config: ~p", [Config]),
+    lager:error("Host: ~p", [Host]),
 
     erlang:spawn(
         fun() ->
