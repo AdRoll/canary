@@ -68,7 +68,7 @@ send_librato_metrics(Config, Host, Gauges, Counters, MeasureTime) ->
         {counters, lists:map(fun to_json_struct/1, Counters)}
     ]})),
 
-    lager:info("Body: ~p", [Body]),
+    lager:error("Body: ~p", [Body]),
 
     post_metrics(UserName, APIToken, Body, ?LIBRATO_METRICS_POST_TRIES).
 
