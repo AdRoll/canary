@@ -1,0 +1,7 @@
+-boot start_sasl
+-s reloader
+-s inets
+-s ssl
+-s lager
+-s folsom
+-s canary

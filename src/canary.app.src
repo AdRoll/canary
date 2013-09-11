@@ -3,6 +3,7 @@
         {description,"Dashboard publishing for folsom metrics."},
         {vsn,"1.0.0"},
         {registered,[]},
+        {mod, {canary_app, []}},
         {env,[]},
         {start_phases,[]},
         {applications,[kernel,stdlib]}
