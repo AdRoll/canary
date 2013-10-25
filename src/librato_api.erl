@@ -52,7 +52,7 @@ send_metrics(Config, Host, Metrics, MeasureTime) ->
 %% INTERNAL
 
 %% @doc Posts 
-send_librato_metrics(_Config, _Host, Gauges, Counters, _MeasureTime) ->
+send_librato_metrics(_Config, _Host, _Gauges, _Counters, _MeasureTime) ->
     ok;
 send_librato_metrics(Config, Host, Gauges, Counters, MeasureTime) ->
 
