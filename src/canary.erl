@@ -60,10 +60,10 @@ init([HostName, MetricsClientConfig, CanaryMetrics, PublishInterval]) ->
     init_metrics(CanaryMetrics),
 
     State = #server_state{
-            host_name = HostName,
-            tracked_metrics = CanaryMetrics,
-            metrics_client_config = MetricsClientConfig,
-            publish_interval = PublishInterval
+        host_name = HostName,
+        tracked_metrics = CanaryMetrics,
+        metrics_client_config = MetricsClientConfig,
+        publish_interval = PublishInterval
     },
 
     lager:info("Finished initializing canary: ~p", [State]),
@@ -153,9 +153,9 @@ time_call(Label, Seconds, {SampleRateNumerator, SampleRateDenominator}, CallFun)
                 {
                     histogram,
                     #canary_metric_name{
-                            category = <<"TimedCalls">>,
-                            label = Label,
-                            units = <<"milliseconds">>
+                        category = <<"TimedCalls">>,
+                        label = Label,
+                        units = <<"milliseconds">>
                     },
                     slide, Seconds
                 },
@@ -230,9 +230,9 @@ to_folsom_label_name(Lbl) when is_binary(Lbl) ->
 to_canary_name(FolsomMetricName) ->
     [Cat, Lbl, Units] = canary_utils:bsplit(FolsomMetricName, <<":">>),
     #canary_metric_name{
-            category = Cat,
-            label = to_canary_label_name(Lbl),
-            units = Units
+        category = Cat,
+        label = to_canary_label_name(Lbl),
+        units = Units
     }.
 
 to_canary_label_name(Lbl) ->
@@ -291,7 +291,7 @@ to_client_metric_value(FolsomMetricValue)
     when is_float(FolsomMetricValue); is_integer(FolsomMetricValue)
     ->
     {gauge, FolsomMetricValue};
-to_client_metric_value([{count,_}, {one,SpiralValue}]) ->
+to_client_metric_value([{count, _}, {one, SpiralValue}]) ->
     {counter, SpiralValue};
 to_client_metric_value(FolsomHistogramValues)
     when is_list(FolsomHistogramValues)
@@ -316,7 +316,6 @@ to_client_metric_value(FolsomHistogramValues)
     end.
 
 
-
 %%
 %%  SERVER CALL HANDLERS
 %%
@@ -331,9 +330,9 @@ handle_cast({track_metric, CanaryMetric},
 
     % Don't double track.
     State2 = case lists:member(CanaryMetric, TrackedMetrics) of
-        true -> State;
-        false -> State#server_state{tracked_metrics = [CanaryMetric | TrackedMetrics]}
-    end,
+                 true -> State;
+                 false -> State#server_state{tracked_metrics = [CanaryMetric | TrackedMetrics]}
+             end,
 
     {noreply, State2};
 
@@ -345,14 +344,12 @@ handle_cast(_Msg, State) ->
     {noreply, State}.
 
 handle_info({heartbeat}, State) ->
-
     #server_state{
         metrics_client_config = Config,
         host_name = Host,
         next_publish_time = MeasureTime
 
     } = State,
-
     erlang:spawn(
         fun() ->
             send_metrics_report(Config, Host, folsom_metrics:get_metrics_value(canary), MeasureTime)
@@ -365,7 +362,7 @@ handle_info(Info, State) ->
     {noreply, State}.
 
 
-terminate(_Reason, #server_state{client_sync_pc =PC, tracked_metrics=CanaryMetrics}) ->
+terminate(_Reason, #server_state{client_sync_pc = PC, tracked_metrics = CanaryMetrics}) ->
     % delete all tracked metrics
     [folsom_metrics:delete_metric(folsom_metric_name(CanaryMetric)) || CanaryMetric <- CanaryMetrics],
 

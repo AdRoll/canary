@@ -46,13 +46,23 @@
 
 %% @doc Post a list of metrics to Librato Metrics.
 send_metrics(Config, Host, Metrics, MeasureTime) ->
-    {Gauges, Counters} = lists:partition(fun is_gauge/1, to_librato_metrics(Metrics)),
-    send_librato_metrics(Config, Host, Gauges, Counters, MeasureTime).
+
+    try to_librato_metrics(Metrics) of
+        LibratoMetrics ->
+            {Gauges, Counters} = lists:partition(fun is_gauge/1, LibratoMetrics),
+            send_librato_metrics(Config, Host, Gauges, Counters, MeasureTime)
+    catch
+        _:Reason ->
+            lager:error("send_metrics error: ~p", [Reason]),
+            {error, Reason}
+    end.
+
 
 %% INTERNAL
 
 %% @doc Posts 
-send_librato_metrics(_Config, _Host, _Gauges, _Counters, _MeasureTime) ->
+send_librato_metrics(_Config, _Host, [], [], _MeasureTime) ->
+    lager:error("No canary metrics, so nothing to send."),
     ok;
 send_librato_metrics(Config, Host, Gauges, Counters, MeasureTime) ->
 
@@ -67,6 +77,8 @@ send_librato_metrics(Config, Host, Gauges, Counters, MeasureTime) ->
         {gauges, lists:map(fun to_json_struct/1, Gauges)},
         {counters, lists:map(fun to_json_struct/1, Counters)}
     ]})),
+
+    lager:error("Body: ~p", [Body]),
 
     post_metrics(UserName, APIToken, Body, ?LIBRATO_METRICS_POST_TRIES).
 
