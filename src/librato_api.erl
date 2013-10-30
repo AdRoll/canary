@@ -62,7 +62,7 @@ send_metrics(Config, Host, Metrics, MeasureTime) ->
 
 %% @doc Posts 
 send_librato_metrics(_Config, _Host, [], [], _MeasureTime) ->
-    lager:error("No metrics"),
+    lager:error("No canary metrics, so nothing to send."),
     ok;
 send_librato_metrics(Config, Host, Gauges, Counters, MeasureTime) ->
 

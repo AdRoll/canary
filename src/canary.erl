@@ -272,11 +272,19 @@ build_client_metrics([], Acc) ->
 build_client_metrics([FolsomMetric | Rest], Acc) ->
     build_client_metrics(
         Rest,
-        [build_client_metric(FolsomMetric) | Acc]
+        case build_client_metric(FolsomMetric) of
+            undefined -> Acc;
+            ClientMetric -> [ClientMetric | Acc]
+        end
     ).
 
 build_client_metric({FolsomMetricName, Value}) ->
-    {to_canary_name(FolsomMetricName), to_client_metric_value(Value)}.
+    case to_client_metric_value(Value) of
+        undefined ->
+            undefined;
+        ClientMetricValue ->
+            {to_canary_name(FolsomMetricName), ClientMetricValue}
+    end.
 
 
 to_client_metric_value(FolsomMetricValue)
@@ -295,13 +303,17 @@ to_client_metric_value(FolsomHistogramValues)
     Min = canary_utils:getpl(Stats, min),
     Mean = canary_utils:getpl(Stats, arithmetic_mean),
 
-    #histogram_sample{
-        count = Count,
-        max = Max,
-        min = Min,
-        total = Mean * Count
-    }.
-
+    case Count of
+        0 ->
+            undefined;
+        _ ->
+            #histogram_sample {
+                count = Count,
+                max = Max,
+                min = Min,
+                total = Mean * Count
+            }
+    end.
 
 
 %%
